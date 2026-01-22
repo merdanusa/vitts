@@ -5,6 +5,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
+import { useColorScheme } from "react-native";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -12,6 +13,7 @@ const queryClient = new QueryClient();
 
 export default function RootLayout() {
   const [appIsReady, setAppIsReady] = useState(false);
+  const colorScheme = useColorScheme();
 
   useEffect(() => {
     async function prepare() {
@@ -26,7 +28,7 @@ export default function RootLayout() {
     prepare();
   }, []);
 
-  const onLayoutRootView = useEffect(() => {
+  useEffect(() => {
     if (appIsReady) {
       SplashScreen.hideAsync();
     }
@@ -37,7 +39,7 @@ export default function RootLayout() {
   }
 
   return (
-    <GluestackUIProvider mode="dark">
+    <GluestackUIProvider mode={colorScheme === "dark" ? "dark" : "light"}>
       <QueryClientProvider client={queryClient}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="auth" />

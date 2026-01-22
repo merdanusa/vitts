@@ -13,13 +13,11 @@ export default function TabLayout() {
           backgroundColor: "#FFFFFF",
           borderTopWidth: 0.5,
           borderTopColor: "#DBDBDB",
-          height: 50,
-          paddingBottom: 0,
+          height: 64,
+          paddingBottom: 34,
+          paddingTop: 8,
           elevation: 0,
           shadowOpacity: 0,
-        },
-        tabBarItemStyle: {
-          paddingTop: 8,
         },
       }}
     >
@@ -37,25 +35,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="search"
+        name="discover"
         options={{
-          title: "Search",
+          title: "Discover",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "search" : "search-outline"}
-              size={26}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="add"
-        options={{
-          title: "Add",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "add-circle" : "add-circle-outline"}
+              name={focused ? "globe" : "globe-outline"}
               size={26}
               color={color}
             />
@@ -68,7 +53,20 @@ export default function TabLayout() {
           title: "Chats",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "heart" : "heart-outline"}
+              name={focused ? "paper-plane" : "paper-plane-outline"}
+              size={26}
+              color={color}
+            />
+          ),
+        }}
+      />{" "}
+      <Tabs.Screen
+        name="vibecast"
+        options={{
+          title: "Vibecasts",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "videocam" : "videocam-outline"}
               size={26}
               color={color}
             />

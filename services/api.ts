@@ -5,7 +5,8 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:4000";
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -23,7 +24,7 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
       console.log(
-        `[API REQUEST] ${config.method?.toUpperCase()} ${config.url}`,
+        `[API REQUEST] ${config.method?.toUpperCase()} ${API_BASE_URL + config.url}`,
       );
       return config;
     } catch (error) {
