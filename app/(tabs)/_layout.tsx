@@ -5,7 +5,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "0a7ea4",
+        tabBarActiveTintColor: "#0a7ea4",
         headerShown: false,
       }}
     >
@@ -19,20 +19,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="index"
+        name="chats"
         options={{
-          title: "Home",
+          title: "Chats",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="chatbox-sharp" size={24} color={color} />
+            <Ionicons name="chatbox-ellipses" size={24} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="index"
+        name="profile"
         options={{
-          title: "Home",
+          title: "Profile",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="home" size={24} color={color} />
+            <Ionicons name="person" size={24} color={color} />
           ),
         }}
       />
