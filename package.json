@@ -13,7 +13,10 @@
   "dependencies": {
     "@expo/html-elements": "^0.12.5",
     "@expo/vector-icons": "^15.0.3",
+    "@gluestack-style/react": "^1.0.57",
+    "@gluestack-ui/config": "^1.1.20",
     "@gluestack-ui/core": "^3.0.10",
+    "@gluestack-ui/themed": "^1.1.73",
     "@gluestack-ui/utils": "^3.0.11",
     "@gorhom/bottom-sheet": "^5.0.0-alpha.11",
     "@legendapp/motion": "^2.4.0",
@@ -21,6 +24,7 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "@tanstack/react-query": "^5.90.19",
     "axios": "^1.13.2",
     "expo": "~54.0.32",
     "expo-constants": "~18.0.13",

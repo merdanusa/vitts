@@ -1,223 +1,196 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { router } from "expo-router";
-import React, { useRef, useState } from "react";
 import {
-  Animated,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  Box,
+  Button,
+  ButtonText,
+  FormControl,
+  FormControlError,
+  FormControlErrorText,
+  Heading,
+  HStack,
+  Input,
+  InputField,
+  Link,
+  LinkText,
   Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+  VStack,
+} from "@gluestack-ui/themed";
+import { useMutation } from "@tanstack/react-query";
+import axios from "axios";
+import React, { useState } from "react";
+import { Alert } from "react-native";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = "http://192.168.1.101:4000/api/auth";
+
+type AuthMode = "login" | "register";
 
 export default function AuthScreen() {
-  const [isLogin, setIsLogin] = useState(true);
-  const [name, setName] = useState("");
-  const [login, setLogin] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<AuthMode>("login");
+  const [formData, setFormData] = useState({
+    name: "",
+    login: "",
+    email: "",
+    password: "",
+    phoneNumber: "",
+  });
 
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const heightAnim = useRef(new Animated.Value(0)).current;
+  const { mutate: submitAuth, isPending } = useMutation({
+    mutationFn: async () => {
+      const url =
+        mode === "login" ? `${API_BASE}/login` : `${API_BASE}/register`;
+      const payload =
+        mode === "login"
+          ? { login: formData.login, password: formData.password }
+          : {
+              name: formData.name,
+              login: formData.login,
+              email: formData.email || undefined,
+              password: formData.password,
+              phoneNumber: formData.phoneNumber || undefined,
+            };
 
-  const toggleMode = () => {
-    if (loading) return;
+      const res = await axios.post(url, payload);
+      return res.data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        Alert.alert("Success", data.message, [
+          { text: "OK", onPress: () => console.log("Token:", data.token) },
+        ]);
+      }
+    },
+    onError: (error: any) => {
+      const msg = error.response?.data?.message || "Network or server error";
+      Alert.alert("Error", msg);
+    },
+  });
 
-    Keyboard.dismiss();
-    setError(null);
-
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      setIsLogin((prev) => !prev);
-
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(heightAnim, {
-          toValue: isLogin ? 1 : 0,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ]).start();
-    });
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleAuth = async () => {
-    if (loading) return;
-
-    const trimmedLogin = login.trim();
-    const trimmedPassword = password.trim();
-    const trimmedName = name.trim();
-
-    if (!trimmedLogin || !trimmedPassword) {
-      setError("Username and password required");
-      return;
+  const validateForm = () => {
+    if (mode === "login") {
+      return formData.login.trim() && formData.password;
     }
 
-    if (!isLogin && !trimmedName) {
-      setError("Name is required");
-      return;
+    if (!formData.name.trim() || !formData.login.trim() || !formData.password) {
+      Alert.alert(
+        "Validation Error",
+        "Name, login, and password are required.",
+      );
+      return false;
     }
-
-    if (trimmedPassword.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
+    if (formData.password.length < 6) {
+      Alert.alert(
+        "Validation Error",
+        "Password must be at least 6 characters.",
+      );
+      return false;
     }
+    return true;
+  };
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
-      const body = isLogin
-        ? { login: trimmedLogin, password: trimmedPassword }
-        : { name: trimmedName, login: trimmedLogin, password: trimmedPassword };
-
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.token && data.user) {
-        await AsyncStorage.setItem("token", data.token);
-        await AsyncStorage.setItem("user", JSON.stringify(data.user));
-        router.replace("/(tabs)");
-      } else {
-        setError(data.message || "Authentication failed");
-      }
-    } catch (err) {
-      setError("Connection failed. Check your network");
-    } finally {
-      setLoading(false);
+  const handleSubmit = () => {
+    if (validateForm()) {
+      submitAuth();
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black" edges={["top", "bottom"]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+    <Box flex={1} p="$6" bg="$backgroundLight0" justifyContent="center">
+      <VStack space="xl">
+        <Heading size="2xl" textAlign="center">
+          {mode === "login" ? "Welcome Back" : "Create Account"}
+        </Heading>
+
+        {mode === "register" && (
+          <FormControl>
+            <Input>
+              <InputField
+                placeholder="Full Name"
+                value={formData.name}
+                onChangeText={(v: any) => handleInputChange("name", v)}
+              />
+            </Input>
+          </FormControl>
+        )}
+
+        <FormControl>
+          <Input>
+            <InputField
+              placeholder="Login"
+              value={formData.login}
+              onChangeText={(v: any) => handleInputChange("login", v)}
+            />
+          </Input>
+        </FormControl>
+
+        {mode === "register" && (
+          <>
+            <FormControl>
+              <Input>
+                <InputField
+                  placeholder="Email (optional)"
+                  value={formData.email}
+                  onChangeText={(v: any) => handleInputChange("email", v)}
+                  keyboardType="email-address"
+                />
+              </Input>
+            </FormControl>
+
+            <FormControl>
+              <Input>
+                <InputField
+                  placeholder="Phone (optional, e.g. +1234567890)"
+                  value={formData.phoneNumber}
+                  onChangeText={(v: any) => handleInputChange("phoneNumber", v)}
+                  keyboardType="phone-pad"
+                />
+              </Input>
+            </FormControl>
+          </>
+        )}
+
+        <FormControl>
+          <Input>
+            <InputField
+              placeholder="Password"
+              value={formData.password}
+              onChangeText={(v: any) => handleInputChange("password", v)}
+              secureTextEntry
+            />
+          </Input>
+          {formData.password &&
+            formData.password.length < 6 &&
+            mode === "register" && (
+              <FormControlError>
+                <FormControlErrorText>Password too short</FormControlErrorText>
+              </FormControlError>
+            )}
+        </FormControl>
+
+        <Button
+          onPress={handleSubmit}
+          isLoading={isPending}
+          isDisabled={isPending}
+          size="lg"
         >
-          <View className="flex-1 justify-center px-6 py-8">
-            <Animated.View style={{ opacity: fadeAnim }}>
-              <Text className="text-white text-4xl font-bold mb-2">
-                {isLogin ? "Welcome back" : "Create account"}
-              </Text>
-              <Text className="text-gray-400 text-base mb-10">
-                {isLogin ? "Sign in to continue" : "Join Vitts Chat today"}
-              </Text>
+          <ButtonText>{mode === "login" ? "Sign In" : "Sign Up"}</ButtonText>
+        </Button>
 
-              {error ? (
-                <View className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
-                  <Text className="text-red-400 text-sm text-center">
-                    {error}
-                  </Text>
-                </View>
-              ) : null}
-
-              <View className="gap-3">
-                {!isLogin ? (
-                  <View className="bg-zinc-900 rounded-2xl border border-zinc-800">
-                    <TextInput
-                      placeholder="Full name"
-                      placeholderTextColor="#6b7280"
-                      value={name}
-                      onChangeText={(text) => {
-                        setName(text);
-                        if (error) setError(null);
-                      }}
-                      className="px-5 py-4 text-white text-base"
-                      autoCapitalize="words"
-                      editable={!loading}
-                    />
-                  </View>
-                ) : null}
-
-                <View className="bg-zinc-900 rounded-2xl border border-zinc-800">
-                  <TextInput
-                    placeholder="Username"
-                    placeholderTextColor="#6b7280"
-                    value={login}
-                    onChangeText={(text) => {
-                      setLogin(text);
-                      if (error) setError(null);
-                    }}
-                    className="px-5 py-4 text-white text-base"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!loading}
-                  />
-                </View>
-
-                <View className="bg-zinc-900 rounded-2xl border border-zinc-800">
-                  <TextInput
-                    placeholder="Password"
-                    placeholderTextColor="#6b7280"
-                    value={password}
-                    onChangeText={(text) => {
-                      setPassword(text);
-                      if (error) setError(null);
-                    }}
-                    className="px-5 py-4 text-white text-base"
-                    secureTextEntry
-                    autoCapitalize="none"
-                    editable={!loading}
-                    onSubmitEditing={handleAuth}
-                    returnKeyType="done"
-                  />
-                </View>
-              </View>
-
-              <TouchableOpacity
-                onPress={handleAuth}
-                disabled={loading}
-                className={`rounded-2xl mt-8 py-4 items-center ${
-                  loading ? "bg-blue-600/50" : "bg-blue-600"
-                }`}
-                activeOpacity={0.7}
-              >
-                <Text className="text-white text-base font-semibold">
-                  {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
-                </Text>
-              </TouchableOpacity>
-
-              <View className="flex-row justify-center items-center mt-8">
-                <Text className="text-gray-400 text-sm">
-                  {isLogin
-                    ? "Don't have an account? "
-                    : "Already have an account? "}
-                </Text>
-                <TouchableOpacity onPress={toggleMode} disabled={loading}>
-                  <Text className="text-blue-500 text-sm font-semibold">
-                    {isLogin ? "Sign Up" : "Sign In"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        <HStack justifyContent="center" space="sm">
+          <Text>
+            {mode === "login"
+              ? "Don't have an account?"
+              : "Already have an account?"}
+          </Text>
+          <Link
+            onPress={() => setMode(mode === "login" ? "register" : "login")}
+          >
+            <LinkText>{mode === "login" ? "Sign Up" : "Sign In"}</LinkText>
+          </Link>
+        </HStack>
+      </VStack>
+    </Box>
   );
 }
