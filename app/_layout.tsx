@@ -1,31 +1,46 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Redirect, Stack } from "expo-router";
+import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
+import "@/global.css";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 
-export default function AppLayout() {
-  const [isChecking, setIsChecking] = useState(true);
-  const [hasToken, setHasToken] = useState<boolean | null>(null);
+SplashScreen.preventAutoHideAsync();
+
+export default function RootLayout() {
+  const [appIsReady, setAppIsReady] = useState(false);
 
   useEffect(() => {
-    (async () => {
+    async function prepare() {
       try {
-        const token = await AsyncStorage.getItem("token");
-        setHasToken(!!token);
-      } catch {
-        setHasToken(false);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } catch (e) {
+        console.warn(e);
       } finally {
-        setIsChecking(false);
+        setAppIsReady(true);
       }
-    })();
+    }
+    prepare();
   }, []);
 
-  if (isChecking) {
+  const onLayoutRootView = useEffect(() => {
+    if (appIsReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [appIsReady]);
+
+  if (!appIsReady) {
     return null;
   }
 
-  if (!hasToken) {
-    return <Redirect href="/auth" />;
-  }
-
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <GluestackUIProvider mode="dark">
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+      </Stack>
+      <StatusBar style="auto" />
+    </GluestackUIProvider>
+  );
 }
