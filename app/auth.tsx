@@ -6,6 +6,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -23,36 +24,32 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const heightAnim = useRef(new Animated.Value(0)).current;
 
   const toggleMode = () => {
+    if (loading) return;
+
     Keyboard.dismiss();
     setError(null);
 
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: isLogin ? -15 : 15,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setIsLogin(!isLogin);
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setIsLogin((prev) => !prev);
+
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 150,
+          duration: 200,
           useNativeDriver: true,
         }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
+        Animated.timing(heightAnim, {
+          toValue: isLogin ? 1 : 0,
+          duration: 300,
+          useNativeDriver: false,
         }),
       ]).start();
     });
@@ -61,8 +58,22 @@ export default function AuthScreen() {
   const handleAuth = async () => {
     if (loading) return;
 
-    if (!login.trim() || !password.trim() || (!isLogin && !name.trim())) {
-      setError("Please fill all fields");
+    const trimmedLogin = login.trim();
+    const trimmedPassword = password.trim();
+    const trimmedName = name.trim();
+
+    if (!trimmedLogin || !trimmedPassword) {
+      setError("Username and password required");
+      return;
+    }
+
+    if (!isLogin && !trimmedName) {
+      setError("Name is required");
+      return;
+    }
+
+    if (trimmedPassword.length < 6) {
+      setError("Password must be at least 6 characters");
       return;
     }
 
@@ -71,7 +82,9 @@ export default function AuthScreen() {
 
     try {
       const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
-      const body = isLogin ? { login, password } : { name, login, password };
+      const body = isLogin
+        ? { login: trimmedLogin, password: trimmedPassword }
+        : { name: trimmedName, login: trimmedLogin, password: trimmedPassword };
 
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
@@ -81,128 +94,129 @@ export default function AuthScreen() {
 
       const data = await response.json();
 
-      if (response.ok && data.token) {
+      if (response.ok && data.token && data.user) {
         await AsyncStorage.setItem("token", data.token);
+        await AsyncStorage.setItem("user", JSON.stringify(data.user));
         router.replace("/(tabs)");
       } else {
         setError(data.message || "Authentication failed");
       }
     } catch (err) {
-      setError("Network error. Check connection.");
+      setError("Connection failed. Check your network");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-black" edges={["top", "bottom"]}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        <View className="flex-1 justify-center px-6">
-          <Animated.View
-            style={{
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            }}
-          >
-            <Text className="text-white text-4xl font-bold mb-2">
-              {isLogin ? "Welcome back" : "Create account"}
-            </Text>
-            <Text className="text-gray-400 text-base mb-10">
-              {isLogin ? "Sign in to continue" : "Join Vitts Chat today"}
-            </Text>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View className="flex-1 justify-center px-6 py-8">
+            <Animated.View style={{ opacity: fadeAnim }}>
+              <Text className="text-white text-4xl font-bold mb-2">
+                {isLogin ? "Welcome back" : "Create account"}
+              </Text>
+              <Text className="text-gray-400 text-base mb-10">
+                {isLogin ? "Sign in to continue" : "Join Vitts Chat today"}
+              </Text>
 
-            {error && (
-              <View className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
-                <Text className="text-red-400 text-sm text-center">
-                  {error}
-                </Text>
-              </View>
-            )}
+              {error ? (
+                <View className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+                  <Text className="text-red-400 text-sm text-center">
+                    {error}
+                  </Text>
+                </View>
+              ) : null}
 
-            <View className="gap-3">
-              {!isLogin && (
+              <View className="gap-3">
+                {!isLogin ? (
+                  <View className="bg-zinc-900 rounded-2xl border border-zinc-800">
+                    <TextInput
+                      placeholder="Full name"
+                      placeholderTextColor="#6b7280"
+                      value={name}
+                      onChangeText={(text) => {
+                        setName(text);
+                        if (error) setError(null);
+                      }}
+                      className="px-5 py-4 text-white text-base"
+                      autoCapitalize="words"
+                      editable={!loading}
+                    />
+                  </View>
+                ) : null}
+
                 <View className="bg-zinc-900 rounded-2xl border border-zinc-800">
                   <TextInput
-                    placeholder="Full name"
+                    placeholder="Username"
                     placeholderTextColor="#6b7280"
-                    value={name}
+                    value={login}
                     onChangeText={(text) => {
-                      setName(text);
-                      setError(null);
+                      setLogin(text);
+                      if (error) setError(null);
                     }}
                     className="px-5 py-4 text-white text-base"
-                    autoCapitalize="words"
+                    autoCapitalize="none"
+                    autoCorrect={false}
                     editable={!loading}
                   />
                 </View>
-              )}
 
-              <View className="bg-zinc-900 rounded-2xl border border-zinc-800">
-                <TextInput
-                  placeholder="Username"
-                  placeholderTextColor="#6b7280"
-                  value={login}
-                  onChangeText={(text) => {
-                    setLogin(text);
-                    setError(null);
-                  }}
-                  className="px-5 py-4 text-white text-base"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!loading}
-                />
+                <View className="bg-zinc-900 rounded-2xl border border-zinc-800">
+                  <TextInput
+                    placeholder="Password"
+                    placeholderTextColor="#6b7280"
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (error) setError(null);
+                    }}
+                    className="px-5 py-4 text-white text-base"
+                    secureTextEntry
+                    autoCapitalize="none"
+                    editable={!loading}
+                    onSubmitEditing={handleAuth}
+                    returnKeyType="done"
+                  />
+                </View>
               </View>
 
-              <View className="bg-zinc-900 rounded-2xl border border-zinc-800">
-                <TextInput
-                  placeholder="Password"
-                  placeholderTextColor="#6b7280"
-                  value={password}
-                  onChangeText={(text) => {
-                    setPassword(text);
-                    setError(null);
-                  }}
-                  className="px-5 py-4 text-white text-base"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  editable={!loading}
-                  onSubmitEditing={handleAuth}
-                  returnKeyType={isLogin ? "go" : "done"}
-                />
-              </View>
-            </View>
-
-            <TouchableOpacity
-              onPress={handleAuth}
-              disabled={loading}
-              className={`rounded-2xl mt-8 py-4 items-center ${
-                loading ? "bg-blue-600/50" : "bg-blue-600"
-              }`}
-              activeOpacity={0.7}
-            >
-              <Text className="text-white text-base font-semibold">
-                {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
-              </Text>
-            </TouchableOpacity>
-
-            <View className="flex-row justify-center items-center mt-8">
-              <Text className="text-gray-400 text-sm">
-                {isLogin
-                  ? "Don't have an account? "
-                  : "Already have an account? "}
-              </Text>
-              <TouchableOpacity onPress={toggleMode} disabled={loading}>
-                <Text className="text-blue-500 text-sm font-semibold">
-                  {isLogin ? "Sign Up" : "Sign In"}
+              <TouchableOpacity
+                onPress={handleAuth}
+                disabled={loading}
+                className={`rounded-2xl mt-8 py-4 items-center ${
+                  loading ? "bg-blue-600/50" : "bg-blue-600"
+                }`}
+                activeOpacity={0.7}
+              >
+                <Text className="text-white text-base font-semibold">
+                  {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
                 </Text>
               </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
+
+              <View className="flex-row justify-center items-center mt-8">
+                <Text className="text-gray-400 text-sm">
+                  {isLogin
+                    ? "Don't have an account? "
+                    : "Already have an account? "}
+                </Text>
+                <TouchableOpacity onPress={toggleMode} disabled={loading}>
+                  <Text className="text-blue-500 text-sm font-semibold">
+                    {isLogin ? "Sign Up" : "Sign In"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
