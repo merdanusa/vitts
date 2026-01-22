@@ -1,7 +1,7 @@
 import { login, register } from "@/services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -21,45 +21,74 @@ export default function AuthScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
-  const [step, setStep] = useState<
-    "login" | "email" | "username" | "name" | "password"
-  >("login");
+  const [step, setStep] = useState<"login" | 1 | 2 | 3 | 4 | 5>("login");
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState("");
-  const [loginValue, setLoginValue] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [fadeAnim] = useState(new Animated.Value(1));
 
-  const animateTransition = (callback: () => void) => {
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
+  // Form values
+  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-    setTimeout(callback, 150);
+  // Animation
+  const animValue = useRef(new Animated.Value(0)).current;
+
+  const fadeIn = () => {
+    animValue.setValue(0);
+    Animated.timing(animValue, {
+      toValue: 1,
+      duration: 320,
+      useNativeDriver: true,
+    }).start();
   };
 
+  useEffect(() => {
+    fadeIn();
+  }, [step]);
+
+  const animatedStyle = {
+    opacity: animValue,
+    transform: [
+      {
+        translateY: animValue.interpolate({
+          inputRange: [0, 1],
+          outputRange: [20, 0],
+        }),
+      },
+    ],
+  };
+
+  const resetForm = () => {
+    setError("");
+    setEmail("");
+    setUsername("");
+    setName("");
+    setPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+  };
+
+  // ── LOGIN ────────────────────────────────────────────────
   const handleLogin = async () => {
     setError("");
     setLoading(true);
 
     try {
-      if (!loginValue.trim()) throw new Error("Login is required");
+      if (!email.trim() && !username.trim())
+        throw new Error("Username or email required");
       if (!password) throw new Error("Password is required");
 
+      const loginPayload = username.trim()
+        ? { login: username.trim() }
+        : { login: email.trim() };
+
       const result = await login({
-        login: loginValue.trim(),
+        ...loginPayload,
         password,
       });
 
@@ -67,71 +96,68 @@ export default function AuthScreen() {
       router.replace("/(tabs)");
     } catch (err: any) {
       let message = "Something went wrong. Please try again.";
-
       if (err.response) {
         const status = err.response.status;
         const backendMsg = err.response.data?.message;
-
-        if (status === 401) {
-          message = "Incorrect login or password";
-        } else if (status === 400) {
-          message = backendMsg || "Invalid input";
-        } else {
-          message = backendMsg || "Server error – please try again later";
-        }
+        if (status === 401) message = "Incorrect credentials";
+        else if (status === 400) message = backendMsg || "Invalid input";
+        else message = backendMsg || "Server error";
       } else if (err.message) {
         message = err.message;
       }
-
       setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEmailNext = () => {
+  // ── SIGNUP FLOW ──────────────────────────────────────────
+  const goNext = () => {
     setError("");
-    if (!email.trim()) {
-      setError("Email is required");
-      return;
+    if (step === 1) {
+      if (!email.trim()) return setError("Email is required");
+      if (!email.includes("@")) return setError("Invalid email format");
+      setStep(2);
+    } else if (step === 2) {
+      if (!username.trim()) return setError("Username is required");
+      if (username.length < 3)
+        return setError("Username must be at least 3 characters");
+      setStep(3);
+    } else if (step === 3) {
+      if (!name.trim()) return setError("Full name is required");
+      setStep(4);
+    } else if (step === 4) {
+      if (!password) return setError("Password is required");
+      if (password.length < 6)
+        return setError("Password must be at least 6 characters");
+      setStep(5);
+    } else if (step === 5) {
+      handleSignUpComplete();
     }
-    if (!email.includes("@")) {
-      setError("Please enter a valid email");
-      return;
-    }
-    animateTransition(() => setStep("username"));
   };
 
-  const handleUsernameNext = () => {
+  const goBack = () => {
     setError("");
-    if (!loginValue.trim()) {
-      setError("Username is required");
-      return;
-    }
-    animateTransition(() => setStep("name"));
-  };
-
-  const handleNameNext = () => {
-    setError("");
-    if (!name.trim()) {
-      setError("Name is required");
-      return;
-    }
-    animateTransition(() => setStep("password"));
+    if (step === 2) setStep(1);
+    else if (step === 3) setStep(2);
+    else if (step === 4) setStep(3);
+    else if (step === 5) setStep(4);
   };
 
   const handleSignUpComplete = async () => {
     setError("");
     setLoading(true);
 
-    try {
-      if (!password) throw new Error("Password is required");
-      if (password.length < 6)
-        throw new Error("Password must be at least 6 characters");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      setLoading(false);
+      return;
+    }
 
+    try {
       const result = await register({
         name: name.trim(),
-        login: loginValue.trim(),
+        login: username.trim(),
         email: email.trim(),
         password,
       });
@@ -139,92 +165,36 @@ export default function AuthScreen() {
       await AsyncStorage.setItem("token", result.token);
       router.replace("/(tabs)");
     } catch (err: any) {
-      let message = "Something went wrong. Please try again.";
-
+      let message = "Something went wrong.";
       if (err.response) {
         const status = err.response.status;
-        const backendMsg = err.response.data?.message;
-
-        if (status === 409) {
-          message = backendMsg || "Username or email already in use";
-        } else if (status === 400) {
-          message = backendMsg || "Invalid input";
-        } else {
-          message = backendMsg || "Server error – please try again later";
-        }
+        const msg = err.response.data?.message;
+        if (status === 409) message = msg || "Username or email already taken";
+        else if (status === 400) message = msg || "Invalid input";
+        else message = msg || "Server error";
       } else if (err.message) {
         message = err.message;
       }
-
       setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setError("");
-    setName("");
-    setLoginValue("");
-    setEmail("");
-    setPassword("");
-    setShowPassword(false);
-  };
-
   const switchToSignUp = () => {
     resetForm();
-    animateTransition(() => setStep("email"));
+    setStep(1);
   };
 
   const switchToLogin = () => {
     resetForm();
-    animateTransition(() => setStep("login"));
+    setStep("login");
   };
 
-  const goBack = () => {
-    setError("");
-    if (step === "username") {
-      animateTransition(() => setStep("email"));
-    } else if (step === "name") {
-      animateTransition(() => setStep("username"));
-    } else if (step === "password") {
-      animateTransition(() => setStep("name"));
-    }
-  };
-
-  const getStepTitle = () => {
-    switch (step) {
-      case "email":
-        return "What's your email?";
-      case "username":
-        return "Choose a username";
-      case "name":
-        return "What's your name?";
-      case "password":
-        return "Create a password";
-      default:
-        return "Welcome Back";
-    }
-  };
-
-  const getStepSubtitle = () => {
-    switch (step) {
-      case "email":
-        return "Enter the email you'll use to sign in";
-      case "username":
-        return "Pick a unique username";
-      case "name":
-        return "Add your full name";
-      case "password":
-        return "Must be at least 6 characters";
-      default:
-        return "Sign in to continue";
-    }
-  };
-
+  // ── RENDER ───────────────────────────────────────────────
   return (
     <SafeAreaView
-      style={{ backgroundColor: isDark ? "#000000" : "#FFFFFF" }}
+      style={{ backgroundColor: isDark ? "#000" : "#fff" }}
       className="flex-1"
     >
       <KeyboardAvoidingView
@@ -236,88 +206,79 @@ export default function AuthScreen() {
           className="px-6"
           keyboardShouldPersistTaps="handled"
         >
-          <Animated.View style={{ opacity: fadeAnim }}>
-            <View className="items-center mb-8">
-              <Image
-                source={require("@/assets/images/app_icon.png")}
-                style={{ width: 100, height: 100 }}
-                className="rounded-2xl mb-4"
-              />
-            </View>
+          <View className="items-center mb-10">
+            <Image
+              source={require("@/assets/images/app_icon.png")}
+              style={{ width: 100, height: 100 }}
+              className="rounded-2xl mb-5"
+            />
+          </View>
 
-            <View className="mb-8 items-center">
-              <Text
-                style={{ color: isDark ? "#FFFFFF" : "#000000" }}
-                className="text-2xl font-bold mb-1 tracking-tight"
-              >
-                {getStepTitle()}
-              </Text>
-              <Text
-                style={{ color: isDark ? "#8E8E93" : "#6B7280" }}
-                className="text-base text-center"
-              >
-                {getStepSubtitle()}
-              </Text>
-            </View>
-
-            {/* Login Screen */}
+          <Animated.View style={[animatedStyle, { flex: 1 }]}>
             {step === "login" && (
               <View className="w-full">
-                <View className="mb-4">
-                  <TextInput
-                    style={{
-                      backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
-                      color: isDark ? "#FFFFFF" : "#000000",
-                      borderColor: isDark ? "#38383A" : "transparent",
-                    }}
-                    className="h-14 rounded-xl px-4 text-base border"
-                    value={loginValue}
-                    onChangeText={setLoginValue}
-                    placeholder="Username or Email"
-                    placeholderTextColor={isDark ? "#8E8E93" : "#A1A1A6"}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    autoFocus
-                  />
+                <View className="mb-10 items-center">
+                  <Text
+                    style={{ color: isDark ? "#fff" : "#000" }}
+                    className="text-3xl font-bold mb-2"
+                  >
+                    Welcome Back
+                  </Text>
+                  <Text
+                    style={{ color: isDark ? "#999" : "#666" }}
+                    className="text-base text-center"
+                  >
+                    Sign in to continue
+                  </Text>
                 </View>
 
-                <View className="mb-6 relative">
+                <TextInput
+                  style={{
+                    backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                    color: isDark ? "#fff" : "#000",
+                  }}
+                  className="h-14 rounded-xl px-4 mb-4 text-base border border-transparent"
+                  value={email || username}
+                  onChangeText={(t) => {
+                    if (t.includes("@")) setEmail(t);
+                    else setUsername(t);
+                  }}
+                  placeholder="Username or Email"
+                  placeholderTextColor={isDark ? "#777" : "#999"}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType={
+                    email.includes("@") ? "email-address" : "default"
+                  }
+                />
+
+                <View className="relative mb-6">
                   <TextInput
                     style={{
                       backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
-                      color: isDark ? "#FFFFFF" : "#000000",
-                      borderColor: isDark ? "#38383A" : "transparent",
+                      color: isDark ? "#fff" : "#000",
                     }}
-                    className="h-14 rounded-xl px-4 text-base border pr-20"
+                    className="h-14 rounded-xl px-4 pr-20 text-base border border-transparent"
                     value={password}
                     onChangeText={setPassword}
                     placeholder="Password"
-                    placeholderTextColor={isDark ? "#8E8E93" : "#A1A1A6"}
+                    placeholderTextColor={isDark ? "#777" : "#999"}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                   />
                   <TouchableOpacity
                     className="absolute right-4 top-4"
                     onPress={() => setShowPassword(!showPassword)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Text className="text-[#007AFF] font-medium text-base">
+                    <Text className="text-[#007AFF] font-medium">
                       {showPassword ? "Hide" : "Show"}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
                 {error ? (
-                  <View
-                    style={{
-                      backgroundColor: isDark ? "#2C1515" : "#FEE2E2",
-                    }}
-                    className="rounded-xl px-4 py-3 mb-4"
-                  >
-                    <Text
-                      style={{ color: isDark ? "#FF6B6B" : "#DC2626" }}
-                      className="text-sm text-center"
-                    >
+                  <View className="bg-red-100 dark:bg-red-950/40 rounded-xl px-4 py-3 mb-6">
+                    <Text className="text-red-600 dark:text-red-400 text-sm text-center">
                       {error}
                     </Text>
                   </View>
@@ -327,7 +288,6 @@ export default function AuthScreen() {
                   className={`h-14 bg-[#007AFF] rounded-xl items-center justify-center ${loading ? "opacity-60" : ""}`}
                   onPress={handleLogin}
                   disabled={loading}
-                  activeOpacity={0.7}
                 >
                   {loading ? (
                     <ActivityIndicator color="#fff" size="small" />
@@ -338,18 +298,15 @@ export default function AuthScreen() {
                   )}
                 </TouchableOpacity>
 
-                <View className="flex-row justify-center items-center mt-8 gap-1">
+                <View className="flex-row justify-center mt-8 gap-1.5">
                   <Text
-                    style={{ color: isDark ? "#8E8E93" : "#6B7280" }}
+                    style={{ color: isDark ? "#999" : "#666" }}
                     className="text-base"
                   >
                     Do not have an account?
                   </Text>
-                  <TouchableOpacity
-                    onPress={switchToSignUp}
-                    activeOpacity={0.6}
-                  >
-                    <Text className="text-base text-[#007AFF] font-semibold">
+                  <TouchableOpacity onPress={switchToSignUp}>
+                    <Text className="text-[#007AFF] font-semibold">
                       Sign Up
                     </Text>
                   </TouchableOpacity>
@@ -357,229 +314,138 @@ export default function AuthScreen() {
               </View>
             )}
 
-            {step === "email" && (
+            {step !== "login" && (
               <View className="w-full">
-                <View className="mb-6">
+                <View className="flex-row items-center mb-6">
+                  {step > 1 && (
+                    <TouchableOpacity onPress={goBack} className="mr-3">
+                      <Text className="text-[#007AFF] text-lg">←</Text>
+                    </TouchableOpacity>
+                  )}
+                  <Text
+                    style={{ color: isDark ? "#fff" : "#000" }}
+                    className="text-2xl font-bold flex-1 text-center"
+                  >
+                    {step === 1 && "Your Email"}
+                    {step === 2 && "Choose Username"}
+                    {step === 3 && "Your Name"}
+                    {step === 4 && "Create Password"}
+                    {step === 5 && "Confirm Password"}
+                  </Text>
+                </View>
+
+                <Text
+                  style={{ color: isDark ? "#aaa" : "#666" }}
+                  className="text-center mb-8"
+                >
+                  Step {step} of 5
+                </Text>
+
+                {step === 1 && (
                   <TextInput
                     style={{
                       backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
-                      color: isDark ? "#FFFFFF" : "#000000",
-                      borderColor: isDark ? "#38383A" : "transparent",
+                      color: isDark ? "#fff" : "#000",
                     }}
-                    className="h-14 rounded-xl px-4 text-base border"
+                    className="h-14 rounded-xl px-4 mb-6 text-base border border-transparent"
                     value={email}
                     onChangeText={setEmail}
-                    placeholder="Email"
-                    placeholderTextColor={isDark ? "#8E8E93" : "#A1A1A6"}
+                    placeholder="Email address"
+                    placeholderTextColor={isDark ? "#777" : "#999"}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
-                    autoFocus
                   />
-                </View>
+                )}
 
-                {error ? (
-                  <View
-                    style={{
-                      backgroundColor: isDark ? "#2C1515" : "#FEE2E2",
-                    }}
-                    className="rounded-xl px-4 py-3 mb-4"
-                  >
-                    <Text
-                      style={{ color: isDark ? "#FF6B6B" : "#DC2626" }}
-                      className="text-sm text-center"
-                    >
-                      {error}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <TouchableOpacity
-                  className="h-14 bg-[#007AFF] rounded-xl items-center justify-center"
-                  onPress={handleEmailNext}
-                  activeOpacity={0.7}
-                >
-                  <Text className="text-white text-base font-semibold">
-                    Next
-                  </Text>
-                </TouchableOpacity>
-
-                <View className="flex-row justify-center items-center mt-8 gap-1">
-                  <Text
-                    style={{ color: isDark ? "#8E8E93" : "#6B7280" }}
-                    className="text-base"
-                  >
-                    Already have an account?
-                  </Text>
-                  <TouchableOpacity onPress={switchToLogin} activeOpacity={0.6}>
-                    <Text className="text-base text-[#007AFF] font-semibold">
-                      Log In
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {step === "username" && (
-              <View className="w-full">
-                <TouchableOpacity
-                  onPress={goBack}
-                  className="mb-4"
-                  activeOpacity={0.6}
-                >
-                  <Text className="text-[#007AFF] text-base">← Back</Text>
-                </TouchableOpacity>
-
-                <View className="mb-6">
+                {step === 2 && (
                   <TextInput
                     style={{
                       backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
-                      color: isDark ? "#FFFFFF" : "#000000",
-                      borderColor: isDark ? "#38383A" : "transparent",
+                      color: isDark ? "#fff" : "#000",
                     }}
-                    className="h-14 rounded-xl px-4 text-base border"
-                    value={loginValue}
-                    onChangeText={setLoginValue}
+                    className="h-14 rounded-xl px-4 mb-6 text-base border border-transparent"
+                    value={username}
+                    onChangeText={setUsername}
                     placeholder="Username"
-                    placeholderTextColor={isDark ? "#8E8E93" : "#A1A1A6"}
+                    placeholderTextColor={isDark ? "#777" : "#999"}
                     autoCapitalize="none"
                     autoCorrect={false}
-                    autoFocus
                   />
-                </View>
+                )}
 
-                {error ? (
-                  <View
-                    style={{
-                      backgroundColor: isDark ? "#2C1515" : "#FEE2E2",
-                    }}
-                    className="rounded-xl px-4 py-3 mb-4"
-                  >
-                    <Text
-                      style={{ color: isDark ? "#FF6B6B" : "#DC2626" }}
-                      className="text-sm text-center"
-                    >
-                      {error}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <TouchableOpacity
-                  className="h-14 bg-[#007AFF] rounded-xl items-center justify-center"
-                  onPress={handleUsernameNext}
-                  activeOpacity={0.7}
-                >
-                  <Text className="text-white text-base font-semibold">
-                    Next
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {step === "name" && (
-              <View className="w-full">
-                <TouchableOpacity
-                  onPress={goBack}
-                  className="mb-4"
-                  activeOpacity={0.6}
-                >
-                  <Text className="text-[#007AFF] text-base">← Back</Text>
-                </TouchableOpacity>
-
-                <View className="mb-6">
+                {step === 3 && (
                   <TextInput
                     style={{
                       backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
-                      color: isDark ? "#FFFFFF" : "#000000",
-                      borderColor: isDark ? "#38383A" : "transparent",
+                      color: isDark ? "#fff" : "#000",
                     }}
-                    className="h-14 rounded-xl px-4 text-base border"
+                    className="h-14 rounded-xl px-4 mb-6 text-base border border-transparent"
                     value={name}
                     onChangeText={setName}
-                    placeholder="Full Name"
-                    placeholderTextColor={isDark ? "#8E8E93" : "#A1A1A6"}
+                    placeholder="Full name"
+                    placeholderTextColor={isDark ? "#777" : "#999"}
                     autoCapitalize="words"
-                    autoFocus
                   />
-                </View>
+                )}
 
-                {error ? (
-                  <View
-                    style={{
-                      backgroundColor: isDark ? "#2C1515" : "#FEE2E2",
-                    }}
-                    className="rounded-xl px-4 py-3 mb-4"
-                  >
-                    <Text
-                      style={{ color: isDark ? "#FF6B6B" : "#DC2626" }}
-                      className="text-sm text-center"
+                {step === 4 && (
+                  <View className="relative mb-6">
+                    <TextInput
+                      style={{
+                        backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                        color: isDark ? "#fff" : "#000",
+                      }}
+                      className="h-14 rounded-xl px-4 pr-20 text-base border border-transparent"
+                      value={password}
+                      onChangeText={setPassword}
+                      placeholder="Password"
+                      placeholderTextColor={isDark ? "#777" : "#999"}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      className="absolute right-4 top-4"
+                      onPress={() => setShowPassword(!showPassword)}
                     >
-                      {error}
-                    </Text>
+                      <Text className="text-[#007AFF] font-medium">
+                        {showPassword ? "Hide" : "Show"}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                ) : null}
+                )}
 
-                <TouchableOpacity
-                  className="h-14 bg-[#007AFF] rounded-xl items-center justify-center"
-                  onPress={handleNameNext}
-                  activeOpacity={0.7}
-                >
-                  <Text className="text-white text-base font-semibold">
-                    Next
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Step 4: Password */}
-            {step === "password" && (
-              <View className="w-full">
-                <TouchableOpacity
-                  onPress={goBack}
-                  className="mb-4"
-                  activeOpacity={0.6}
-                >
-                  <Text className="text-[#007AFF] text-base">← Back</Text>
-                </TouchableOpacity>
-
-                <View className="mb-6 relative">
-                  <TextInput
-                    style={{
-                      backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
-                      color: isDark ? "#FFFFFF" : "#000000",
-                      borderColor: isDark ? "#38383A" : "transparent",
-                    }}
-                    className="h-14 rounded-xl px-4 text-base border pr-20"
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder="Password"
-                    placeholderTextColor={isDark ? "#8E8E93" : "#A1A1A6"}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    autoFocus
-                  />
-                  <TouchableOpacity
-                    className="absolute right-4 top-4"
-                    onPress={() => setShowPassword(!showPassword)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <Text className="text-[#007AFF] font-medium text-base">
-                      {showPassword ? "Hide" : "Show"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                {step === 5 && (
+                  <View className="relative mb-6">
+                    <TextInput
+                      style={{
+                        backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                        color: isDark ? "#fff" : "#000",
+                      }}
+                      className="h-14 rounded-xl px-4 pr-20 text-base border border-transparent"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      placeholder="Confirm password"
+                      placeholderTextColor={isDark ? "#777" : "#999"}
+                      secureTextEntry={!showConfirmPassword}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      className="absolute right-4 top-4"
+                      onPress={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                    >
+                      <Text className="text-[#007AFF] font-medium">
+                        {showConfirmPassword ? "Hide" : "Show"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
 
                 {error ? (
-                  <View
-                    style={{
-                      backgroundColor: isDark ? "#2C1515" : "#FEE2E2",
-                    }}
-                    className="rounded-xl px-4 py-3 mb-4"
-                  >
-                    <Text
-                      style={{ color: isDark ? "#FF6B6B" : "#DC2626" }}
-                      className="text-sm text-center"
-                    >
+                  <View className="bg-red-100 dark:bg-red-950/40 rounded-xl px-4 py-3 mb-6">
+                    <Text className="text-red-600 dark:text-red-400 text-sm text-center">
                       {error}
                     </Text>
                   </View>
@@ -587,18 +453,29 @@ export default function AuthScreen() {
 
                 <TouchableOpacity
                   className={`h-14 bg-[#007AFF] rounded-xl items-center justify-center ${loading ? "opacity-60" : ""}`}
-                  onPress={handleSignUpComplete}
+                  onPress={goNext}
                   disabled={loading}
-                  activeOpacity={0.7}
                 >
                   {loading ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <Text className="text-white text-base font-semibold">
-                      Sign Up
+                      {step === 5 ? "Create Account" : "Next"}
                     </Text>
                   )}
                 </TouchableOpacity>
+
+                <View className="flex-row justify-center mt-8 gap-1.5">
+                  <Text
+                    style={{ color: isDark ? "#999" : "#666" }}
+                    className="text-base"
+                  >
+                    Already have an account?
+                  </Text>
+                  <TouchableOpacity onPress={switchToLogin}>
+                    <Text className="text-[#007AFF] font-semibold">Log In</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </Animated.View>
