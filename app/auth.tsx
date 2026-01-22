@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +18,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const { width } = Dimensions.get("window");
+const MAX_FORM_WIDTH = 420;
+
 export default function AuthScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -25,7 +29,6 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Form values
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [name, setName] = useState("");
@@ -34,14 +37,13 @@ export default function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Animation
   const animValue = useRef(new Animated.Value(0)).current;
 
   const fadeIn = () => {
     animValue.setValue(0);
     Animated.timing(animValue, {
       toValue: 1,
-      duration: 320,
+      duration: 340,
       useNativeDriver: true,
     }).start();
   };
@@ -56,7 +58,7 @@ export default function AuthScreen() {
       {
         translateY: animValue.interpolate({
           inputRange: [0, 1],
-          outputRange: [20, 0],
+          outputRange: [30, 0],
         }),
       },
     ],
@@ -73,37 +75,30 @@ export default function AuthScreen() {
     setShowConfirmPassword(false);
   };
 
-  // ── LOGIN ────────────────────────────────────────────────
   const handleLogin = async () => {
     setError("");
     setLoading(true);
-
     try {
       if (!email.trim() && !username.trim())
         throw new Error("Username or email required");
-      if (!password) throw new Error("Password is required");
-
-      const loginPayload = username.trim()
-        ? { login: username.trim() }
-        : { login: email.trim() };
+      if (!password.trim()) throw new Error("Password is required");
 
       const result = await login({
-        ...loginPayload,
+        login: username.trim() || email.trim(),
         password,
       });
 
       await AsyncStorage.setItem("token", result.token);
       router.replace("/(tabs)");
     } catch (err: any) {
-      let message = "Something went wrong. Please try again.";
+      let message = "Something went wrong.";
       if (err.response) {
-        const status = err.response.status;
-        const backendMsg = err.response.data?.message;
+        const { status, data } = err.response;
         if (status === 401) message = "Incorrect credentials";
-        else if (status === 400) message = backendMsg || "Invalid input";
-        else message = backendMsg || "Server error";
-      } else if (err.message) {
-        message = err.message;
+        else if (status === 400) message = data?.message || "Invalid input";
+        else message = data?.message || "Server error";
+      } else {
+        message = err.message || message;
       }
       setError(message);
     } finally {
@@ -111,25 +106,22 @@ export default function AuthScreen() {
     }
   };
 
-  // ── SIGNUP FLOW ──────────────────────────────────────────
   const goNext = () => {
     setError("");
     if (step === 1) {
       if (!email.trim()) return setError("Email is required");
-      if (!email.includes("@")) return setError("Invalid email format");
+      if (!email.includes("@")) return setError("Invalid email");
       setStep(2);
     } else if (step === 2) {
       if (!username.trim()) return setError("Username is required");
-      if (username.length < 3)
-        return setError("Username must be at least 3 characters");
+      if (username.length < 3) return setError("Min 3 characters");
       setStep(3);
     } else if (step === 3) {
-      if (!name.trim()) return setError("Full name is required");
+      if (!name.trim()) return setError("Name is required");
       setStep(4);
     } else if (step === 4) {
-      if (!password) return setError("Password is required");
-      if (password.length < 6)
-        return setError("Password must be at least 6 characters");
+      if (!password.trim()) return setError("Password is required");
+      if (password.length < 6) return setError("Min 6 characters");
       setStep(5);
     } else if (step === 5) {
       handleSignUpComplete();
@@ -138,10 +130,7 @@ export default function AuthScreen() {
 
   const goBack = () => {
     setError("");
-    if (step === 2) setStep(1);
-    else if (step === 3) setStep(2);
-    else if (step === 4) setStep(3);
-    else if (step === 5) setStep(4);
+    if (step > 1) setStep(((step as number) - 1) as any);
   };
 
   const handleSignUpComplete = async () => {
@@ -167,13 +156,12 @@ export default function AuthScreen() {
     } catch (err: any) {
       let message = "Something went wrong.";
       if (err.response) {
-        const status = err.response.status;
-        const msg = err.response.data?.message;
-        if (status === 409) message = msg || "Username or email already taken";
-        else if (status === 400) message = msg || "Invalid input";
-        else message = msg || "Server error";
-      } else if (err.message) {
-        message = err.message;
+        const { status, data } = err.response;
+        if (status === 409) message = data?.message || "Username/email taken";
+        else if (status === 400) message = data?.message || "Invalid input";
+        else message = data?.message || "Server error";
+      } else {
+        message = err.message || message;
       }
       setError(message);
     } finally {
@@ -191,200 +179,209 @@ export default function AuthScreen() {
     setStep("login");
   };
 
-  // ── RENDER ───────────────────────────────────────────────
   return (
     <SafeAreaView
-      style={{ backgroundColor: isDark ? "#000" : "#fff" }}
-      className="flex-1"
+      style={{ backgroundColor: isDark ? "#000" : "#fff", flex: 1 }}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
+        style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
-          className="px-6"
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "center",
+            paddingHorizontal: 24,
+            paddingVertical: 40,
+          }}
           keyboardShouldPersistTaps="handled"
         >
-          <View className="items-center mb-10">
+          <View style={{ alignItems: "center", marginBottom: 32 }}>
             <Image
               source={require("@/assets/images/app_icon.png")}
-              style={{ width: 100, height: 100 }}
-              className="rounded-2xl mb-5"
+              style={{ width: 88, height: 88 }}
+              className="rounded-3xl mb-6"
             />
           </View>
 
-          <Animated.View style={[animatedStyle, { flex: 1 }]}>
-            {step === "login" && (
-              <View className="w-full">
-                <View className="mb-10 items-center">
-                  <Text
-                    style={{ color: isDark ? "#fff" : "#000" }}
-                    className="text-3xl font-bold mb-2"
-                  >
-                    Welcome Back
-                  </Text>
-                  <Text
-                    style={{ color: isDark ? "#999" : "#666" }}
-                    className="text-base text-center"
-                  >
-                    Sign in to continue
-                  </Text>
-                </View>
+          <Animated.View
+            style={[
+              animatedStyle,
+              {
+                width: "100%",
+                maxWidth: MAX_FORM_WIDTH,
+                alignSelf: "center",
+              },
+            ]}
+          >
+            {step !== "login" && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  marginBottom: 24,
+                  gap: 8,
+                }}
+              >
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <View
+                    key={s}
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 5,
+                      backgroundColor:
+                        s === step
+                          ? "#007AFF"
+                          : s < (step as number)
+                            ? isDark
+                              ? "#444"
+                              : "#ccc"
+                            : isDark
+                              ? "#222"
+                              : "#eee",
+                    }}
+                  />
+                ))}
+              </View>
+            )}
 
+            <View style={{ alignItems: "center", marginBottom: 32 }}>
+              <Text
+                style={{
+                  color: isDark ? "#fff" : "#000",
+                  fontSize: step === "login" ? 32 : 26,
+                  fontWeight: "700",
+                  letterSpacing: -0.5,
+                  textAlign: "center",
+                }}
+              >
+                {step === "login"
+                  ? "Welcome back"
+                  : step === 1
+                    ? "Your email"
+                    : step === 2
+                      ? "Choose username"
+                      : step === 3
+                        ? "Your name"
+                        : step === 4
+                          ? "Create password"
+                          : "Confirm password"}
+              </Text>
+
+              <Text
+                style={{
+                  color: isDark ? "#888" : "#666",
+                  fontSize: 16,
+                  marginTop: 8,
+                  textAlign: "center",
+                }}
+              >
+                {step === "login"
+                  ? "Sign in to continue"
+                  : step !== 5
+                    ? `Step ${step} of 5`
+                    : "Make sure they match"}
+              </Text>
+            </View>
+
+            {step === "login" ? (
+              <>
                 <TextInput
                   style={{
-                    backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                    backgroundColor: isDark ? "#111" : "#f8f9fa",
                     color: isDark ? "#fff" : "#000",
+                    borderWidth: 1,
+                    borderColor: isDark ? "#333" : "#ddd",
                   }}
-                  className="h-14 rounded-xl px-4 mb-4 text-base border border-transparent"
-                  value={email || username}
+                  className="h-14 rounded-2xl px-5 mb-4 text-base"
+                  value={username || email}
                   onChangeText={(t) => {
                     if (t.includes("@")) setEmail(t);
                     else setUsername(t);
                   }}
                   placeholder="Username or Email"
-                  placeholderTextColor={isDark ? "#777" : "#999"}
+                  placeholderTextColor={isDark ? "#666" : "#999"}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  keyboardType={
-                    email.includes("@") ? "email-address" : "default"
-                  }
                 />
 
                 <View className="relative mb-6">
                   <TextInput
                     style={{
-                      backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                      backgroundColor: isDark ? "#111" : "#f8f9fa",
                       color: isDark ? "#fff" : "#000",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#333" : "#ddd",
                     }}
-                    className="h-14 rounded-xl px-4 pr-20 text-base border border-transparent"
+                    className="h-14 rounded-2xl px-5 pr-20 text-base"
                     value={password}
                     onChangeText={setPassword}
                     placeholder="Password"
-                    placeholderTextColor={isDark ? "#777" : "#999"}
+                    placeholderTextColor={isDark ? "#666" : "#999"}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                   />
                   <TouchableOpacity
-                    className="absolute right-4 top-4"
+                    className="absolute right-5 top-4"
                     onPress={() => setShowPassword(!showPassword)}
                   >
-                    <Text className="text-[#007AFF] font-medium">
+                    <Text className="text-[#007AFF] font-medium text-base">
                       {showPassword ? "Hide" : "Show"}
                     </Text>
                   </TouchableOpacity>
                 </View>
-
-                {error ? (
-                  <View className="bg-red-100 dark:bg-red-950/40 rounded-xl px-4 py-3 mb-6">
-                    <Text className="text-red-600 dark:text-red-400 text-sm text-center">
-                      {error}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <TouchableOpacity
-                  className={`h-14 bg-[#007AFF] rounded-xl items-center justify-center ${loading ? "opacity-60" : ""}`}
-                  onPress={handleLogin}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text className="text-white text-base font-semibold">
-                      Log In
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                <View className="flex-row justify-center mt-8 gap-1.5">
-                  <Text
-                    style={{ color: isDark ? "#999" : "#666" }}
-                    className="text-base"
-                  >
-                    Do not have an account?
-                  </Text>
-                  <TouchableOpacity onPress={switchToSignUp}>
-                    <Text className="text-[#007AFF] font-semibold">
-                      Sign Up
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {step !== "login" && (
-              <View className="w-full">
-                <View className="flex-row items-center mb-6">
-                  {step > 1 && (
-                    <TouchableOpacity onPress={goBack} className="mr-3">
-                      <Text className="text-[#007AFF] text-lg">←</Text>
-                    </TouchableOpacity>
-                  )}
-                  <Text
-                    style={{ color: isDark ? "#fff" : "#000" }}
-                    className="text-2xl font-bold flex-1 text-center"
-                  >
-                    {step === 1 && "Your Email"}
-                    {step === 2 && "Choose Username"}
-                    {step === 3 && "Your Name"}
-                    {step === 4 && "Create Password"}
-                    {step === 5 && "Confirm Password"}
-                  </Text>
-                </View>
-
-                <Text
-                  style={{ color: isDark ? "#aaa" : "#666" }}
-                  className="text-center mb-8"
-                >
-                  Step {step} of 5
-                </Text>
-
+              </>
+            ) : (
+              <>
                 {step === 1 && (
                   <TextInput
                     style={{
-                      backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                      backgroundColor: isDark ? "#111" : "#f8f9fa",
                       color: isDark ? "#fff" : "#000",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#333" : "#ddd",
                     }}
-                    className="h-14 rounded-xl px-4 mb-6 text-base border border-transparent"
+                    className="h-14 rounded-2xl px-5 mb-6 text-base"
                     value={email}
                     onChangeText={setEmail}
                     placeholder="Email address"
-                    placeholderTextColor={isDark ? "#777" : "#999"}
+                    placeholderTextColor={isDark ? "#666" : "#999"}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    autoCorrect={false}
                   />
                 )}
 
                 {step === 2 && (
                   <TextInput
                     style={{
-                      backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                      backgroundColor: isDark ? "#111" : "#f8f9fa",
                       color: isDark ? "#fff" : "#000",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#333" : "#ddd",
                     }}
-                    className="h-14 rounded-xl px-4 mb-6 text-base border border-transparent"
+                    className="h-14 rounded-2xl px-5 mb-6 text-base"
                     value={username}
                     onChangeText={setUsername}
                     placeholder="Username"
-                    placeholderTextColor={isDark ? "#777" : "#999"}
+                    placeholderTextColor={isDark ? "#666" : "#999"}
                     autoCapitalize="none"
-                    autoCorrect={false}
                   />
                 )}
 
                 {step === 3 && (
                   <TextInput
                     style={{
-                      backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                      backgroundColor: isDark ? "#111" : "#f8f9fa",
                       color: isDark ? "#fff" : "#000",
+                      borderWidth: 1,
+                      borderColor: isDark ? "#333" : "#ddd",
                     }}
-                    className="h-14 rounded-xl px-4 mb-6 text-base border border-transparent"
+                    className="h-14 rounded-2xl px-5 mb-6 text-base"
                     value={name}
                     onChangeText={setName}
                     placeholder="Full name"
-                    placeholderTextColor={isDark ? "#777" : "#999"}
+                    placeholderTextColor={isDark ? "#666" : "#999"}
                     autoCapitalize="words"
                   />
                 )}
@@ -393,19 +390,21 @@ export default function AuthScreen() {
                   <View className="relative mb-6">
                     <TextInput
                       style={{
-                        backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                        backgroundColor: isDark ? "#111" : "#f8f9fa",
                         color: isDark ? "#fff" : "#000",
+                        borderWidth: 1,
+                        borderColor: isDark ? "#333" : "#ddd",
                       }}
-                      className="h-14 rounded-xl px-4 pr-20 text-base border border-transparent"
+                      className="h-14 rounded-2xl px-5 pr-20 text-base"
                       value={password}
                       onChangeText={setPassword}
-                      placeholder="Password"
-                      placeholderTextColor={isDark ? "#777" : "#999"}
+                      placeholder="Password (min 6)"
+                      placeholderTextColor={isDark ? "#666" : "#999"}
                       secureTextEntry={!showPassword}
                       autoCapitalize="none"
                     />
                     <TouchableOpacity
-                      className="absolute right-4 top-4"
+                      className="absolute right-5 top-4"
                       onPress={() => setShowPassword(!showPassword)}
                     >
                       <Text className="text-[#007AFF] font-medium">
@@ -419,19 +418,21 @@ export default function AuthScreen() {
                   <View className="relative mb-6">
                     <TextInput
                       style={{
-                        backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+                        backgroundColor: isDark ? "#111" : "#f8f9fa",
                         color: isDark ? "#fff" : "#000",
+                        borderWidth: 1,
+                        borderColor: isDark ? "#333" : "#ddd",
                       }}
-                      className="h-14 rounded-xl px-4 pr-20 text-base border border-transparent"
+                      className="h-14 rounded-2xl px-5 pr-20 text-base"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
                       placeholder="Confirm password"
-                      placeholderTextColor={isDark ? "#777" : "#999"}
+                      placeholderTextColor={isDark ? "#666" : "#999"}
                       secureTextEntry={!showConfirmPassword}
                       autoCapitalize="none"
                     />
                     <TouchableOpacity
-                      className="absolute right-4 top-4"
+                      className="absolute right-5 top-4"
                       onPress={() =>
                         setShowConfirmPassword(!showConfirmPassword)
                       }
@@ -442,41 +443,64 @@ export default function AuthScreen() {
                     </TouchableOpacity>
                   </View>
                 )}
+              </>
+            )}
 
-                {error ? (
-                  <View className="bg-red-100 dark:bg-red-950/40 rounded-xl px-4 py-3 mb-6">
-                    <Text className="text-red-600 dark:text-red-400 text-sm text-center">
-                      {error}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <TouchableOpacity
-                  className={`h-14 bg-[#007AFF] rounded-xl items-center justify-center ${loading ? "opacity-60" : ""}`}
-                  onPress={goNext}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text className="text-white text-base font-semibold">
-                      {step === 5 ? "Create Account" : "Next"}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                <View className="flex-row justify-center mt-8 gap-1.5">
-                  <Text
-                    style={{ color: isDark ? "#999" : "#666" }}
-                    className="text-base"
-                  >
-                    Already have an account?
-                  </Text>
-                  <TouchableOpacity onPress={switchToLogin}>
-                    <Text className="text-[#007AFF] font-semibold">Log In</Text>
-                  </TouchableOpacity>
-                </View>
+            {error ? (
+              <View className="bg-red-500/10 rounded-2xl px-5 py-4 mb-6">
+                <Text className="text-red-500 dark:text-red-400 text-center text-sm font-medium">
+                  {error}
+                </Text>
               </View>
+            ) : null}
+
+            <TouchableOpacity
+              className={`h-14 bg-[#007AFF] rounded-2xl items-center justify-center ${loading ? "opacity-70" : ""}`}
+              onPress={step === "login" ? handleLogin : goNext}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text className="text-white text-base font-semibold tracking-wide">
+                  {step === "login"
+                    ? "Log In"
+                    : step === 5
+                      ? "Create Account"
+                      : "Continue"}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <View className="flex-row justify-center items-center mt-10 gap-2">
+              <Text
+                style={{ color: isDark ? "#aaa" : "#666" }}
+                className="text-base"
+              >
+                {step === "login"
+                  ? "Don't have an account?"
+                  : "Already have an account?"}
+              </Text>
+              <TouchableOpacity
+                onPress={step === "login" ? switchToSignUp : switchToLogin}
+              >
+                <Text className="text-[#007AFF] font-semibold text-base">
+                  {step === "login" ? "Sign Up" : "Log In"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {step !== "login" && step > 1 && (
+              <TouchableOpacity
+                onPress={goBack}
+                style={{ alignSelf: "center", marginTop: 24 }}
+                hitSlop={{ top: 12, bottom: 12, left: 20, right: 20 }}
+              >
+                <Text className="text-[#007AFF] text-base font-medium">
+                  ← Back
+                </Text>
+              </TouchableOpacity>
             )}
           </Animated.View>
         </ScrollView>
