@@ -1,29 +1,31 @@
-import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import "react-native-reanimated";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Redirect, Stack } from "expo-router";
+import { useEffect, useState } from "react";
 
-import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
-import '@/global.css';
+export default function AppLayout() {
+  const [isChecking, setIsChecking] = useState(true);
+  const [hasToken, setHasToken] = useState<boolean | null>(null);
 
-export const unstable_settings = {
-  anchor: "(tabs)",
-};
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem("token");
+        setHasToken(!!token);
+      } catch {
+        setHasToken(false);
+      } finally {
+        setIsChecking(false);
+      }
+    })();
+  }, []);
 
-export default function RootLayout() {
-  return (
-    
-    <GluestackUIProvider mode="dark">
-      <>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: "modal", title: "Modal" }}
-        />
-      </Stack>
-      <StatusBar style="auto" />
-    </>
-    </GluestackUIProvider>
-  
-  );
+  if (isChecking) {
+    return null;
+  }
+
+  if (!hasToken) {
+    return <Redirect href="/auth" />;
+  }
+
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
