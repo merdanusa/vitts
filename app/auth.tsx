@@ -1,8 +1,8 @@
+import { AuthInput } from "@/components/AuthInput";
 import { login, register } from "@/services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { useColorScheme } from "nativewind";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -12,9 +12,9 @@ import {
   Platform,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
+  useColorScheme as useSystemTheme,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -25,8 +25,21 @@ type AuthMode = "login" | "signup";
 type SignUpStep = 1 | 2 | 3 | 4 | 5;
 
 export default function AuthScreen() {
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const systemTheme = useSystemTheme();
+
+  const isDark = useMemo(() => systemTheme === "dark", [systemTheme]);
+
+  const theme = {
+    background: isDark ? "#000000" : "#ffffff",
+    text: isDark ? "#ffffff" : "#000000",
+    subtext: isDark ? "#888888" : "#666666",
+    inputBg: isDark ? "#1a1a1a" : "#f5f5f5",
+    errorBg: isDark ? "#ff555515" : "#ff555510",
+    errorText: isDark ? "#ff6b6b" : "#dc2626",
+    dotActive: "#007AFF",
+    dotInactive: isDark ? "#333333" : "#eeeeee",
+    dotCompleted: isDark ? "#555555" : "#cccccc",
+  };
 
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [signUpStep, setSignUpStep] = useState<SignUpStep>(1);
@@ -196,61 +209,23 @@ export default function AuthScreen() {
     if (authMode === "login") {
       return (
         <>
-          <TextInput
-            style={{
-              backgroundColor: isDark ? "#111" : "#f8f9fa",
-              color: isDark ? "#fff" : "#000",
-              borderWidth: 1,
-              borderColor: isDark ? "#333" : "#ddd",
-              height: 56,
-              borderRadius: 16,
-              paddingHorizontal: 20,
-              marginBottom: 16,
-              fontSize: 16,
-            }}
+          <AuthInput
             value={username || email}
-            onChangeText={(t) => {
-              if (t.includes("@")) setEmail(t);
-              else setUsername(t);
+            onChangeText={(t: any) => {
+              t.includes("@") ? setEmail(t) : setUsername(t);
             }}
             placeholder="Username or Email"
-            placeholderTextColor={isDark ? "#666" : "#999"}
             autoCapitalize="none"
-            autoCorrect={false}
             keyboardType={email.includes("@") ? "email-address" : "default"}
           />
-
-          <View style={{ position: "relative", marginBottom: 24 }}>
-            <TextInput
-              style={{
-                backgroundColor: isDark ? "#111" : "#f8f9fa",
-                color: isDark ? "#fff" : "#000",
-                borderWidth: 1,
-                borderColor: isDark ? "#333" : "#ddd",
-                height: 56,
-                borderRadius: 16,
-                paddingHorizontal: 20,
-                paddingRight: 80,
-                fontSize: 16,
-              }}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password"
-              placeholderTextColor={isDark ? "#666" : "#999"}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              style={{ position: "absolute", right: 20, top: 16 }}
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Text
-                style={{ color: "#007AFF", fontWeight: "500", fontSize: 16 }}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <AuthInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Password"
+            isPassword
+            showPassword={showPassword}
+            onTogglePassword={() => setShowPassword(!showPassword)}
+          />
         </>
       );
     }
@@ -258,135 +233,55 @@ export default function AuthScreen() {
     switch (signUpStep) {
       case 1:
         return (
-          <TextInput
-            style={{
-              backgroundColor: isDark ? "#111" : "#f8f9fa",
-              color: isDark ? "#fff" : "#000",
-              borderWidth: 1,
-              borderColor: isDark ? "#333" : "#ddd",
-              height: 56,
-              borderRadius: 16,
-              paddingHorizontal: 20,
-              marginBottom: 24,
-              fontSize: 16,
-            }}
+          <AuthInput
             value={email}
             onChangeText={setEmail}
             placeholder="Email address"
-            placeholderTextColor={isDark ? "#666" : "#999"}
             keyboardType="email-address"
             autoCapitalize="none"
           />
         );
       case 2:
         return (
-          <TextInput
-            style={{
-              backgroundColor: isDark ? "#111" : "#f8f9fa",
-              color: isDark ? "#fff" : "#000",
-              borderWidth: 1,
-              borderColor: isDark ? "#333" : "#ddd",
-              height: 56,
-              borderRadius: 16,
-              paddingHorizontal: 20,
-              marginBottom: 24,
-              fontSize: 16,
-            }}
+          <AuthInput
             value={username}
             onChangeText={setUsername}
             placeholder="Username"
-            placeholderTextColor={isDark ? "#666" : "#999"}
             autoCapitalize="none"
           />
         );
       case 3:
         return (
-          <TextInput
-            style={{
-              backgroundColor: isDark ? "#111" : "#f8f9fa",
-              color: isDark ? "#fff" : "#000",
-              borderWidth: 1,
-              borderColor: isDark ? "#333" : "#ddd",
-              height: 56,
-              borderRadius: 16,
-              paddingHorizontal: 20,
-              marginBottom: 24,
-              fontSize: 16,
-            }}
+          <AuthInput
             value={name}
             onChangeText={setName}
             placeholder="Full name"
-            placeholderTextColor={isDark ? "#666" : "#999"}
             autoCapitalize="words"
           />
         );
       case 4:
         return (
-          <View style={{ position: "relative", marginBottom: 24 }}>
-            <TextInput
-              style={{
-                backgroundColor: isDark ? "#111" : "#f8f9fa",
-                color: isDark ? "#fff" : "#000",
-                borderWidth: 1,
-                borderColor: isDark ? "#333" : "#ddd",
-                height: 56,
-                borderRadius: 16,
-                paddingHorizontal: 20,
-                paddingRight: 80,
-                fontSize: 16,
-              }}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password (min 6)"
-              placeholderTextColor={isDark ? "#666" : "#999"}
-              secureTextEntry={!showPassword}
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              style={{ position: "absolute", right: 20, top: 16 }}
-              onPress={() => setShowPassword(!showPassword)}
-            >
-              <Text
-                style={{ color: "#007AFF", fontWeight: "500", fontSize: 16 }}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <AuthInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Password (min 6)"
+            isPassword
+            showPassword={showPassword}
+            onTogglePassword={() => setShowPassword(!showPassword)}
+          />
         );
       case 5:
         return (
-          <View style={{ position: "relative", marginBottom: 24 }}>
-            <TextInput
-              style={{
-                backgroundColor: isDark ? "#111" : "#f8f9fa",
-                color: isDark ? "#fff" : "#000",
-                borderWidth: 1,
-                borderColor: isDark ? "#333" : "#ddd",
-                height: 56,
-                borderRadius: 16,
-                paddingHorizontal: 20,
-                paddingRight: 80,
-                fontSize: 16,
-              }}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Confirm password"
-              placeholderTextColor={isDark ? "#666" : "#999"}
-              secureTextEntry={!showConfirmPassword}
-              autoCapitalize="none"
-            />
-            <TouchableOpacity
-              style={{ position: "absolute", right: 20, top: 16 }}
-              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-            >
-              <Text
-                style={{ color: "#007AFF", fontWeight: "500", fontSize: 16 }}
-              >
-                {showConfirmPassword ? "Hide" : "Show"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <AuthInput
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            placeholder="Confirm password"
+            isPassword
+            showPassword={showConfirmPassword}
+            onTogglePassword={() =>
+              setShowConfirmPassword(!showConfirmPassword)
+            }
+          />
         );
       default:
         return null;
@@ -394,9 +289,7 @@ export default function AuthScreen() {
   };
 
   return (
-    <SafeAreaView
-      style={{ backgroundColor: isDark ? "#000" : "#fff", flex: 1 }}
-    >
+    <SafeAreaView style={{ backgroundColor: theme.background, flex: 1 }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -410,13 +303,13 @@ export default function AuthScreen() {
           }}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={{ alignItems: "center", marginBottom: 32 }}>
+          <View style={{ alignItems: "center", marginBottom: 48 }}>
             <Image
               source={require("@/assets/images/app_icon.png")}
               style={{
                 width: 88,
                 height: 88,
-                borderRadius: 24,
+                borderRadius: 22,
                 marginBottom: 24,
               }}
             />
@@ -450,24 +343,20 @@ export default function AuthScreen() {
                       borderRadius: 5,
                       backgroundColor:
                         s === signUpStep
-                          ? "#007AFF"
+                          ? theme.dotActive
                           : s < signUpStep
-                            ? isDark
-                              ? "#444"
-                              : "#ccc"
-                            : isDark
-                              ? "#222"
-                              : "#eee",
+                            ? theme.dotCompleted
+                            : theme.dotInactive,
                     }}
                   />
                 ))}
               </View>
             )}
 
-            <View style={{ alignItems: "center", marginBottom: 32 }}>
+            <View style={{ alignItems: "center", marginBottom: 48 }}>
               <Text
                 style={{
-                  color: isDark ? "#fff" : "#000",
+                  color: theme.text,
                   fontSize: authMode === "login" ? 32 : 26,
                   fontWeight: "700",
                   letterSpacing: -0.5,
@@ -489,7 +378,7 @@ export default function AuthScreen() {
 
               <Text
                 style={{
-                  color: isDark ? "#888" : "#666",
+                  color: theme.subtext,
                   fontSize: 16,
                   marginTop: 8,
                   textAlign: "center",
@@ -508,7 +397,7 @@ export default function AuthScreen() {
             {error ? (
               <View
                 style={{
-                  backgroundColor: isDark ? "#ff555515" : "#ff555510",
+                  backgroundColor: theme.errorBg,
                   borderRadius: 16,
                   paddingHorizontal: 20,
                   paddingVertical: 16,
@@ -517,7 +406,7 @@ export default function AuthScreen() {
               >
                 <Text
                   style={{
-                    color: isDark ? "#ff6b6b" : "#dc2626",
+                    color: theme.errorText,
                     textAlign: "center",
                     fontSize: 14,
                     fontWeight: "500",
@@ -572,7 +461,7 @@ export default function AuthScreen() {
             >
               <Text
                 style={{
-                  color: isDark ? "#aaa" : "#666",
+                  color: theme.subtext,
                   fontSize: 16,
                 }}
               >

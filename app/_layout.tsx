@@ -1,53 +1,48 @@
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 import "@/global.css";
+import { useAppTheme } from "@/hooks/useAppTheme.ts";
+import { store } from "@/store";
+import { updateSystemTheme } from "@/store/themeSlice";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
-import { useColorScheme } from "react-native";
+import { useEffect } from "react";
+import { Appearance } from "react-native";
+import { Provider, useDispatch } from "react-redux";
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-export default function RootLayout() {
-  const [appIsReady, setAppIsReady] = useState(false);
-  const colorScheme = useColorScheme();
+function RootLayoutContent() {
+  const dispatch = useDispatch();
+  const { colors, isDark } = useAppTheme();
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      } catch (e) {
-        console.warn(e);
-      } finally {
-        setAppIsReady(true);
-      }
-    }
-    prepare();
+    const subscription = Appearance.addChangeListener(() => {
+      dispatch(updateSystemTheme());
+    });
+    return () => subscription.remove();
   }, []);
 
-  useEffect(() => {
-    if (appIsReady) {
-      SplashScreen.hideAsync();
-    }
-  }, [appIsReady]);
-
-  if (!appIsReady) {
-    return null;
-  }
-
   return (
-    <GluestackUIProvider mode={colorScheme === "dark" ? "dark" : "light"}>
+    <GluestackUIProvider mode={isDark ? "dark" : "light"}>
       <QueryClientProvider client={queryClient}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="auth" />
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
         </Stack>
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? "light" : "dark"} />
       </QueryClientProvider>
     </GluestackUIProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <Provider store={store}>
+      <RootLayoutContent />
+    </Provider>
   );
 }
