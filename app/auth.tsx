@@ -1,196 +1,228 @@
-import {
-  Box,
-  Button,
-  ButtonText,
-  FormControl,
-  FormControlError,
-  FormControlErrorText,
-  Heading,
-  HStack,
-  Input,
-  InputField,
-  Link,
-  LinkText,
-  Text,
-  VStack,
-} from "@gluestack-ui/themed";
-import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
+import { login, register } from "@/services/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 import React, { useState } from "react";
-import { Alert } from "react-native";
-
-const API_BASE = "http://192.168.1.101:4000/api/auth";
-
-type AuthMode = "login" | "register";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function AuthScreen() {
-  const [mode, setMode] = useState<AuthMode>("login");
-  const [formData, setFormData] = useState({
-    name: "",
-    login: "",
-    email: "",
-    password: "",
-    phoneNumber: "",
-  });
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [loginValue, setLoginValue] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
 
-  const { mutate: submitAuth, isPending } = useMutation({
-    mutationFn: async () => {
-      const url =
-        mode === "login" ? `${API_BASE}/login` : `${API_BASE}/register`;
-      const payload =
-        mode === "login"
-          ? { login: formData.login, password: formData.password }
-          : {
-              name: formData.name,
-              login: formData.login,
-              email: formData.email || undefined,
-              password: formData.password,
-              phoneNumber: formData.phoneNumber || undefined,
-            };
+  const handleSubmit = async () => {
+    setError("");
+    setLoading(true);
 
-      const res = await axios.post(url, payload);
-      return res.data;
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        Alert.alert("Success", data.message, [
-          { text: "OK", onPress: () => console.log("Token:", data.token) },
-        ]);
+    try {
+      let result;
+
+      if (isSignUp) {
+        if (!name.trim()) throw new Error("Name is required");
+        if (!loginValue.trim()) throw new Error("Username is required");
+        if (password.length < 6)
+          throw new Error("Password must be at least 6 characters");
+        if (email.trim() && !email.includes("@"))
+          throw new Error("Please enter a valid email");
+
+        result = await register({
+          name: name.trim(),
+          login: loginValue.trim(),
+          ...(email.trim() && { email: email.trim() }),
+          password,
+        });
+      } else {
+        if (!loginValue.trim()) throw new Error("Login is required");
+        if (!password) throw new Error("Password is required");
+
+        result = await login({
+          login: loginValue.trim(),
+          password,
+        });
       }
-    },
-    onError: (error: any) => {
-      const msg = error.response?.data?.message || "Network or server error";
-      Alert.alert("Error", msg);
-    },
-  });
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+      await AsyncStorage.setItem("token", result.token);
+      router.replace("/(tabs)");
+    } catch (err: any) {
+      let message = "Something went wrong. Please try again.";
+
+      if (err.response) {
+        const status = err.response.status;
+        const backendMsg = err.response.data?.message;
+
+        if (status === 409) {
+          message = backendMsg || "Username, email or phone already in use";
+        } else if (status === 401) {
+          message = "Incorrect login or password";
+        } else if (status === 400) {
+          message = backendMsg || "Invalid input";
+        } else {
+          message = backendMsg || "Server error – please try again later";
+        }
+      } else if (err.message) {
+        message = err.message;
+      }
+
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const validateForm = () => {
-    if (mode === "login") {
-      return formData.login.trim() && formData.password;
-    }
-
-    if (!formData.name.trim() || !formData.login.trim() || !formData.password) {
-      Alert.alert(
-        "Validation Error",
-        "Name, login, and password are required.",
-      );
-      return false;
-    }
-    if (formData.password.length < 6) {
-      Alert.alert(
-        "Validation Error",
-        "Password must be at least 6 characters.",
-      );
-      return false;
-    }
-    return true;
-  };
-
-  const handleSubmit = () => {
-    if (validateForm()) {
-      submitAuth();
-    }
+  const toggleMode = () => {
+    setIsSignUp(!isSignUp);
+    setError("");
+    setName("");
+    setLoginValue("");
+    setEmail("");
+    setPassword("");
+    setShowPassword(false);
   };
 
   return (
-    <Box flex={1} p="$6" bg="$backgroundLight0" justifyContent="center">
-      <VStack space="xl">
-        <Heading size="2xl" textAlign="center">
-          {mode === "login" ? "Welcome Back" : "Create Account"}
-        </Heading>
-
-        {mode === "register" && (
-          <FormControl>
-            <Input>
-              <InputField
-                placeholder="Full Name"
-                value={formData.name}
-                onChangeText={(v: any) => handleInputChange("name", v)}
-              />
-            </Input>
-          </FormControl>
-        )}
-
-        <FormControl>
-          <Input>
-            <InputField
-              placeholder="Login"
-              value={formData.login}
-              onChangeText={(v: any) => handleInputChange("login", v)}
-            />
-          </Input>
-        </FormControl>
-
-        {mode === "register" && (
-          <>
-            <FormControl>
-              <Input>
-                <InputField
-                  placeholder="Email (optional)"
-                  value={formData.email}
-                  onChangeText={(v: any) => handleInputChange("email", v)}
-                  keyboardType="email-address"
-                />
-              </Input>
-            </FormControl>
-
-            <FormControl>
-              <Input>
-                <InputField
-                  placeholder="Phone (optional, e.g. +1234567890)"
-                  value={formData.phoneNumber}
-                  onChangeText={(v: any) => handleInputChange("phoneNumber", v)}
-                  keyboardType="phone-pad"
-                />
-              </Input>
-            </FormControl>
-          </>
-        )}
-
-        <FormControl>
-          <Input>
-            <InputField
-              placeholder="Password"
-              value={formData.password}
-              onChangeText={(v: any) => handleInputChange("password", v)}
-              secureTextEntry
-            />
-          </Input>
-          {formData.password &&
-            formData.password.length < 6 &&
-            mode === "register" && (
-              <FormControlError>
-                <FormControlErrorText>Password too short</FormControlErrorText>
-              </FormControlError>
-            )}
-        </FormControl>
-
-        <Button
-          onPress={handleSubmit}
-          isLoading={isPending}
-          isDisabled={isPending}
-          size="lg"
+    <SafeAreaView className="flex-1 bg-white">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
+      >
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: "center" }}
+          className="px-6"
+          keyboardShouldPersistTaps="handled"
         >
-          <ButtonText>{mode === "login" ? "Sign In" : "Sign Up"}</ButtonText>
-        </Button>
+          <View className="mb-10 items-center">
+            <Text className="text-4xl font-bold text-black mb-2">
+              {isSignUp ? "Create Account" : "Welcome Back"}
+            </Text>
+            <Text className="text-base text-gray-600 text-center">
+              {isSignUp ? "Sign up to get started" : "Sign in to continue"}
+            </Text>
+          </View>
 
-        <HStack justifyContent="center" space="sm">
-          <Text>
-            {mode === "login"
-              ? "Don't have an account?"
-              : "Already have an account?"}
-          </Text>
-          <Link
-            onPress={() => setMode(mode === "login" ? "register" : "login")}
-          >
-            <LinkText>{mode === "login" ? "Sign Up" : "Sign In"}</LinkText>
-          </Link>
-        </HStack>
-      </VStack>
-    </Box>
+          <View className="w-full">
+            {isSignUp && (
+              <View className="mb-5">
+                <Text className="text-sm font-semibold text-black mb-2">
+                  Name
+                </Text>
+                <TextInput
+                  className="h-12 bg-gray-100 rounded-xl px-4 text-base text-black border border-gray-200 focus:border-blue-500"
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="John Doe"
+                  placeholderTextColor="#999"
+                  autoCapitalize="words"
+                />
+              </View>
+            )}
+
+            <View className="mb-5">
+              <Text className="text-sm font-semibold text-black mb-2">
+                {isSignUp ? "Username" : "Login"}
+              </Text>
+              <TextInput
+                className="h-12 bg-gray-100 rounded-xl px-4 text-base text-black border border-gray-200 focus:border-blue-500"
+                value={loginValue}
+                onChangeText={setLoginValue}
+                placeholder="username"
+                placeholderTextColor="#999"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {isSignUp && (
+              <View className="mb-5">
+                <Text className="text-sm font-semibold text-black mb-2">
+                  Email (optional)
+                </Text>
+                <TextInput
+                  className="h-12 bg-gray-100 rounded-xl px-4 text-base text-black border border-gray-200 focus:border-blue-500"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="email@example.com"
+                  placeholderTextColor="#999"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+            )}
+
+            <View className="mb-6 relative">
+              <Text className="text-sm font-semibold text-black mb-2">
+                Password
+              </Text>
+              <TextInput
+                className="h-12 bg-gray-100 rounded-xl px-4 text-base text-black border border-gray-200 focus:border-blue-500 pr-16"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                placeholderTextColor="#999"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                className="absolute right-4 top-9"
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 20, bottom: 20, left: 40, right: 40 }}
+              >
+                <Text className="text-blue-600 font-medium text-base">
+                  {showPassword ? "Hide" : "Show"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {error ? (
+              <Text className="text-red-600 text-sm mb-4 text-center">
+                {error}
+              </Text>
+            ) : null}
+
+            <TouchableOpacity
+              className={`h-12 bg-blue-600 rounded-xl items-center justify-center ${loading ? "opacity-70" : ""}`}
+              onPress={handleSubmit}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text className="text-white text-base font-semibold">
+                  {isSignUp ? "Sign Up" : "Sign In"}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <View className="flex-row justify-center items-center mt-6 gap-1">
+              <Text className="text-sm text-gray-600">
+                {isSignUp
+                  ? "Already have an account?"
+                  : "Don't have an account?"}
+              </Text>
+              <TouchableOpacity onPress={toggleMode} activeOpacity={0.7}>
+                <Text className="text-sm text-blue-600 font-semibold">
+                  {isSignUp ? "Sign In" : "Sign Up"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
