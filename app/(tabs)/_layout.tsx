@@ -1,18 +1,12 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
-import { HapticTab } from "@/components/haptic-tab";
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        tabBarActiveTintColor: "0a7ea4",
         headerShown: false,
-        tabBarButton: HapticTab,
       }}
     >
       <Tabs.Screen
@@ -20,7 +14,7 @@ export default function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => (
-            <IoconSymbol name="home" size={24} color={color} />
+            <Ionicons name="home" size={24} color={color} />
           ),
         }}
       />
