@@ -2,12 +2,12 @@ import { Button } from "@/components/ui/button";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
 import { VStack } from "@/components/ui/vstack";
-import { createOrGetChat, searchUsers } from "@/services/api";
+import { createOrGetChat, getAllUsers, searchUsers } from "@/services/api";
 import { useNavigation } from "@react-navigation/native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   Image,
   Platform,
@@ -24,24 +24,78 @@ interface User {
   isOnline: boolean;
 }
 
+const SKELETON_COUNT = 5;
+
+const SkeletonUserItem: React.FC<{ animatedValue: Animated.Value }> = ({
+  animatedValue,
+}) => {
+  return (
+    <HStack
+      className="px-4 py-3 border-b border-gray-200 items-center justify-between"
+      style={{ opacity: animatedValue }}
+    >
+      <HStack className="items-center flex-1">
+        <View className="w-10 h-10 rounded-full bg-gray-300 mr-3" />
+        <VStack className="flex-1">
+          <View className="h-4 bg-gray-300 rounded w-3/4 mb-2" />
+          <View className="h-3 bg-gray-200 rounded w-1/2" />
+        </VStack>
+        <View className="ml-2 w-2 h-2 rounded-full bg-gray-300" />
+      </HStack>
+      <View className="px-4 py-2 rounded-full bg-gray-300 w-16 h-8" />
+    </HStack>
+  );
+};
+
 const DiscoverScreen = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [addingUserId, setAddingUserId] = useState<string | null>(null);
-  const navigation = useNavigation(); // For navigating to chat screen
+  const navigation = useNavigation();
+
+  const pulseAnim = useState(new Animated.Value(0.5))[0];
+
+  useEffect(() => {
+    if (loading) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0.5,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1);
+    }
+  }, [loading]);
 
   const handleSearch = async (query: string) => {
-    if (query.trim().length < 2) {
+    const trimmed = query.trim();
+    if (trimmed.length > 0 && trimmed.length < 2) {
       setUsers([]);
       return;
     }
+
     setLoading(true);
     try {
-      const results = await searchUsers(query);
+      let results: User[];
+      if (trimmed === "") {
+        results = await getAllUsers();
+      } else {
+        results = await searchUsers(query);
+      }
       setUsers(results);
     } catch (error) {
-      Alert.alert("Error", "Failed to search users");
+      Alert.alert("Error", "Failed to load users");
       console.error(error);
     } finally {
       setLoading(false);
@@ -96,10 +150,18 @@ const DiscoverScreen = () => {
     </HStack>
   );
 
+  const renderSkeleton = () => (
+    <VStack>
+      {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
+        <SkeletonUserItem key={index} animatedValue={pulseAnim} />
+      ))}
+    </VStack>
+  );
+
   return (
     <SafeAreaView className="flex-1 bg-white">
       <VStack className="flex-1">
-        {/* Search Bar - iOS stylish with rounded corners, shadow */}
+        {/* Search Bar - iOS stylish */}
         <View className="px-4 py-3">
           <TextInput
             className="bg-gray-100 rounded-full px-4 py-3 text-base shadow-sm"
@@ -113,25 +175,22 @@ const DiscoverScreen = () => {
           />
         </View>
 
-        {/* Loading Indicator */}
-        {loading && (
-          <ActivityIndicator className="mt-4" size="large" color="#007AFF" /> // iOS blue
-        )}
-
-        {/* User List */}
-        <FlatList
-          data={users}
-          keyExtractor={(item) => item.id}
-          renderItem={renderUserItem}
-          ListEmptyComponent={
-            !loading && searchQuery ? (
+        {/* Content */}
+        {loading ? (
+          renderSkeleton()
+        ) : (
+          <FlatList
+            data={users}
+            keyExtractor={(item) => item.id}
+            renderItem={renderUserItem}
+            ListEmptyComponent={() => (
               <Text className="text-center text-gray-500 mt-10">
-                No users found
+                {searchQuery.trim() ? "No users found" : "No users available"}
               </Text>
-            ) : null
-          }
-          className="flex-1"
-        />
+            )}
+            className="flex-1"
+          />
+        )}
       </VStack>
     </SafeAreaView>
   );

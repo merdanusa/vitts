@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import * as SecureStore from "expo-secure-store";
 
 interface UserState {
   id: string | null;
@@ -35,11 +36,12 @@ const userSlice = createSlice({
       state.email = email;
       state.avatar = avatar;
       state.isOnline = isOnline;
-      state.verified = verified;
       state.isAuthenticated = true;
+      state.verified = !!verified;
       console.log("User state updated:", state);
     },
-    logout: (state) => {
+    logout: () => {
+      SecureStore.deleteItemAsync("userToken");
       return initialState;
     },
   },

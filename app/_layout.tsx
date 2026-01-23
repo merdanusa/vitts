@@ -1,6 +1,7 @@
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 import "@/global.css";
 import { useAppTheme } from "@/hooks/useAppTheme.ts";
+import { bootstrapAuth } from "@/services/authBootstrap";
 import { store } from "@/store";
 import { useAppDispatch } from "@/store/hooks";
 import { updateSystemTheme } from "@/store/themeSlice";
@@ -18,19 +19,24 @@ const queryClient = new QueryClient();
 
 function RootLayoutContent() {
   const [appIsReady, setAppIsReady] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const dispatch = useAppDispatch();
   const { isDark } = useAppTheme();
 
   useEffect(() => {
     async function prepare() {
       try {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const isLoggedIn = await bootstrapAuth(dispatch);
+
+        await new Promise((resolve) => setTimeout(resolve, 600));
       } catch (e) {
         console.warn(e);
       } finally {
+        setIsCheckingAuth(false);
         setAppIsReady(true);
       }
     }
+
     prepare();
 
     const subscription = Appearance.addChangeListener(() => {
@@ -46,7 +52,7 @@ function RootLayoutContent() {
     }
   }, [appIsReady]);
 
-  if (!appIsReady) {
+  if (!appIsReady || isCheckingAuth) {
     return null;
   }
 
