@@ -37,6 +37,7 @@ const userSlice = createSlice({
       state.isOnline = isOnline;
       state.verified = verified;
       state.isAuthenticated = true;
+      console.log("User state updated:", state);
     },
     logout: (state) => {
       return initialState;

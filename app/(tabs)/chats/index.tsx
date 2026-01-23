@@ -14,7 +14,8 @@ import { ChatListItem, getCurrentUser, getMyChats } from "@/services/api";
 import { useNavigation } from "@react-navigation/native";
 import { Camera, CheckCheck, Edit, Search } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import { RefreshControl, SafeAreaView, ScrollView } from "react-native";
+import { RefreshControl, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const ChatsScreen = () => {
   const navigation = useNavigation();

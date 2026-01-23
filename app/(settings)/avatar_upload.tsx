@@ -1,19 +1,12 @@
 import { Image } from "@/components/ui/image";
 import { uploadAvatar } from "@/services/api";
+import { RootState } from "@/store";
 import * as ImagePicker from "expo-image-picker";
 import { Camera, Upload, X } from "lucide-react-native";
 import React, { useState } from "react";
-import {
-  Alert,
-  Dimensions,
-  Platform,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Alert, Platform, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const { width } = Dimensions.get("window");
+import { useSelector } from "react-redux";
 
 interface AvatarUploadScreenProps {
   onComplete: () => void;
@@ -24,6 +17,7 @@ export default function AvatarUploadScreen({
   onComplete,
   userName,
 }: AvatarUploadScreenProps) {
+  const isDark = useSelector((state: RootState) => state.theme.isDark);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -140,7 +134,10 @@ export default function AvatarUploadScreen({
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-white dark:bg-black">
+    <SafeAreaView
+      style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
+      className="flex-1"
+    >
       <View className="flex-1 px-6">
         {/* Header */}
         <View className="items-center pt-12 pb-8">
@@ -149,10 +146,16 @@ export default function AvatarUploadScreen({
             className="w-16 h-16 mb-8"
             alt="logo"
           />
-          <Text className="text-2xl font-bold text-center mb-2 dark:text-white">
+          <Text
+            style={{ color: isDark ? "#ffffff" : "#000000" }}
+            className="text-2xl font-bold text-center mb-2"
+          >
             Add Profile Picture
           </Text>
-          <Text className="text-gray-500 dark:text-zinc-400 text-sm text-center px-8">
+          <Text
+            style={{ color: isDark ? "#a1a1aa" : "#6b7280" }}
+            className="text-sm text-center px-8"
+          >
             Welcome, {userName}! Add a profile picture so your friends can
             recognize you.
           </Text>
@@ -168,8 +171,16 @@ export default function AvatarUploadScreen({
                 alt="avatar"
               />
             ) : (
-              <View className="w-40 h-40 rounded-full bg-gray-100 dark:bg-zinc-900 items-center justify-center">
-                <Text className="text-6xl text-gray-400 dark:text-zinc-600">
+              <View
+                style={{
+                  backgroundColor: isDark ? "#18181b" : "#f3f4f6",
+                }}
+                className="w-40 h-40 rounded-full items-center justify-center"
+              >
+                <Text
+                  style={{ color: isDark ? "#52525b" : "#9ca3af" }}
+                  className="text-6xl"
+                >
                   {userName.charAt(0).toUpperCase()}
                 </Text>
               </View>
@@ -188,7 +199,12 @@ export default function AvatarUploadScreen({
 
           {uploading && (
             <View className="mt-4 w-full px-8">
-              <View className="h-2 bg-gray-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+              <View
+                style={{
+                  backgroundColor: isDark ? "#27272a" : "#e5e7eb",
+                }}
+                className="h-2 rounded-full overflow-hidden"
+              >
                 <View
                   className="h-full bg-blue-500"
                   style={{ width: `${uploadProgress}%` }}
@@ -220,7 +236,11 @@ export default function AvatarUploadScreen({
                 <TouchableOpacity
                   onPress={pickImage}
                   activeOpacity={0.7}
-                  className="bg-white dark:bg-zinc-900 border-2 border-blue-500 h-12 rounded-lg flex-row items-center justify-center"
+                  style={{
+                    backgroundColor: isDark ? "#18181b" : "#ffffff",
+                    borderColor: "#3b82f6",
+                  }}
+                  className="border-2 h-12 rounded-lg flex-row items-center justify-center"
                 >
                   <Upload size={20} color="#3b82f6" />
                   <Text className="text-blue-500 font-bold text-sm ml-2">
