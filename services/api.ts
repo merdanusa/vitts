@@ -298,4 +298,66 @@ export const deleteChat = async (
   return res.data;
 };
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  success: boolean;
+  message: string;
+}
+
+export const forgotPassword = async (
+  data: ForgotPasswordPayload,
+): Promise<ForgotPasswordResponse> => {
+  console.log("[AUTH] Forgot password request for:", data.email);
+
+  try {
+    const res = await api.post<ForgotPasswordResponse>(
+      "/api/auth/forgot-password",
+      data,
+    );
+    console.log("[AUTH] Forgot password response:", res.data.message);
+    return res.data;
+  } catch (err: any) {
+    console.error(
+      "[AUTH] Forgot password failed:",
+      err.response?.data || err.message,
+    );
+    throw err;
+  }
+};
+
+export interface ResetPasswordPayload {
+  code: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  success: boolean;
+  message: string;
+}
+
+export const resetPassword = async (
+  data: ResetPasswordPayload,
+): Promise<ResetPasswordResponse> => {
+  console.log("[AUTH] Reset password attempt with code:", data.code);
+
+  try {
+    const res = await api.post<ResetPasswordResponse>(
+      "/api/auth/reset-password",
+      data,
+    );
+    console.log("[AUTH] Password reset successful:", res.data.message);
+
+    return res.data;
+  } catch (err: any) {
+    console.error(
+      "[AUTH] Reset password failed:",
+      err.response?.data || err.message,
+    );
+    throw err;
+  }
+};
+
 export default api;
