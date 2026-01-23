@@ -1,7 +1,26 @@
 import { Image } from "@/components/ui/image";
-import { forgotPassword, login, register, resetPassword } from "@/services/api";
+import {
+  forgotPassword,
+  login,
+  register,
+  resetPassword,
+  uploadAvatar,
+  verifyEmail,
+} from "@/services/api";
+import { setUser } from "@/store/userSlice";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { Facebook, Hash, Lock, Mail, User } from "lucide-react-native";
+import * as SecureStore from "expo-secure-store";
+import {
+  Camera,
+  Facebook,
+  Hash,
+  Lock,
+  Mail,
+  Upload,
+  User,
+  X,
+} from "lucide-react-native";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,6 +35,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useDispatch } from "react-redux";
 
 const { width } = Dimensions.get("window");
 
@@ -27,7 +47,7 @@ const STEPS: Step[] = [
   { id: 4, label: "Password", icon: Lock, field: "password" },
 ];
 
-type AuthMode = "login" | "signup" | "verify" | "forgot" | "reset";
+type AuthMode = "login" | "signup" | "verify" | "forgot" | "reset" | "avatar";
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -35,6 +55,8 @@ export default function AuthScreen() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const dispatch = useDispatch();
 
   const [form, setForm] = useState({
     email: "",
@@ -54,6 +76,11 @@ export default function AuthScreen() {
   const [resetCode, setResetCode] = useState(["", "", "", "", "", ""]);
   const [newPassword, setNewPassword] = useState("");
   const [forgotEmail, setForgotEmail] = useState("");
+
+  // Avatar upload states
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [verifiedUser, setVerifiedUser] = useState<any>(null);
 
   const codeInputs = useRef<(TextInput | null)[]>([]);
   const resetInputs = useRef<(TextInput | null)[]>([]);
@@ -106,10 +133,14 @@ export default function AuthScreen() {
         });
         setMode("verify");
       } else if (mode === "login") {
-        await login({
+        const response = await login({
           login: form.email,
           password: form.password,
         });
+
+        await SecureStore.setItemAsync("userToken", response.token);
+        dispatch(setUser(response.user));
+
         router.replace("/(tabs)");
       } else if (mode === "forgot") {
         await forgotPassword({ email: forgotEmail });
@@ -134,15 +165,18 @@ export default function AuthScreen() {
       setError("Enter the complete code");
       return;
     }
-
     setLoading(true);
-    setError("");
-
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      router.replace("/(tabs)");
+      const code = verificationCode.join("");
+      const response = await verifyEmail({ code });
+
+      await SecureStore.setItemAsync("userToken", response.token);
+
+      // Store user data and show avatar upload screen
+      setVerifiedUser(response.user);
+      setMode("avatar");
     } catch (err: any) {
-      setError("Invalid verification code");
+      setError(err.response?.data?.message || "Verification failed");
     } finally {
       setLoading(false);
     }
@@ -180,6 +214,243 @@ export default function AuthScreen() {
     }
   };
 
+  // Avatar upload functions
+  const requestPermissions = async () => {
+    if (Platform.OS !== "web") {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "We need camera roll permissions to upload your avatar.",
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const pickImage = async () => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "We need camera permissions to take a photo.",
+      );
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo");
+    }
+  };
+
+  const handleAvatarUpload = async () => {
+    if (!selectedImage) return;
+
+    setLoading(true);
+    setUploadProgress(0);
+
+    try {
+      const filename = selectedImage.split("/").pop() || "avatar.jpg";
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : "image/jpeg";
+
+      const file = {
+        uri: selectedImage,
+        fileName: filename,
+        mimeType: type,
+      };
+
+      await uploadAvatar(file, (progressEvent) => {
+        const progress = progressEvent.total
+          ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          : 0;
+        setUploadProgress(progress);
+      });
+
+      dispatch(setUser(verifiedUser));
+      router.replace("/(tabs)");
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      Alert.alert(
+        "Upload Failed",
+        error.response?.data?.message ||
+          "Failed to upload avatar. Please try again.",
+      );
+      setLoading(false);
+    }
+  };
+
+  const handleSkipAvatar = () => {
+    Alert.alert(
+      "Skip Profile Picture?",
+      "You can always add a profile picture later in your settings.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Skip",
+          onPress: () => {
+            dispatch(setUser(verifiedUser));
+            router.replace("/(tabs)");
+          },
+          style: "destructive",
+        },
+      ],
+    );
+  };
+
+  // Avatar Upload Screen
+  if (mode === "avatar") {
+    return (
+      <SafeAreaView className="flex-1 bg-white dark:bg-black">
+        <View className="flex-1 px-6">
+          <View className="items-center pt-12 pb-8">
+            <Image
+              source={require("@/assets/images/app_icon.png")}
+              className="w-16 h-16 mb-8"
+              alt="logo"
+            />
+            <Text className="text-2xl font-bold text-center mb-2 dark:text-white">
+              Add Profile Picture
+            </Text>
+            <Text className="text-gray-500 dark:text-zinc-400 text-sm text-center px-8">
+              Welcome, {verifiedUser?.name}! Add a profile picture so your
+              friends can recognize you.
+            </Text>
+          </View>
+
+          <View className="items-center py-8">
+            <View className="relative">
+              {selectedImage ? (
+                <Image
+                  source={{ uri: selectedImage }}
+                  className="w-40 h-40 rounded-full"
+                  alt="avatar"
+                />
+              ) : (
+                <View className="w-40 h-40 rounded-full bg-gray-100 dark:bg-zinc-900 items-center justify-center">
+                  <Text className="text-6xl text-gray-400 dark:text-zinc-600">
+                    {verifiedUser?.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+
+              {selectedImage && !loading && (
+                <TouchableOpacity
+                  onPress={() => setSelectedImage(null)}
+                  className="absolute top-0 right-0 w-10 h-10 rounded-full bg-red-500 items-center justify-center"
+                  activeOpacity={0.7}
+                >
+                  <X size={20} color="white" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {loading && (
+              <View className="mt-4 w-full px-8">
+                <View className="h-2 bg-gray-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <View
+                    className="h-full bg-blue-500"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </View>
+                <Text className="text-blue-500 text-sm text-center mt-2">
+                  Uploading... {uploadProgress}%
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {!loading && (
+            <View className="gap-3 mt-4">
+              {!selectedImage ? (
+                <>
+                  <TouchableOpacity
+                    onPress={takePhoto}
+                    activeOpacity={0.7}
+                    className="bg-blue-500 h-12 rounded-lg flex-row items-center justify-center"
+                  >
+                    <Camera size={20} color="white" />
+                    <Text className="text-white font-bold text-sm ml-2">
+                      Take Photo
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={pickImage}
+                    activeOpacity={0.7}
+                    className="bg-white dark:bg-zinc-900 border-2 border-blue-500 h-12 rounded-lg flex-row items-center justify-center"
+                  >
+                    <Upload size={20} color="#3b82f6" />
+                    <Text className="text-blue-500 font-bold text-sm ml-2">
+                      Choose from Gallery
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleAvatarUpload}
+                  activeOpacity={0.7}
+                  className="bg-blue-500 h-12 rounded-lg items-center justify-center"
+                >
+                  <Text className="text-white font-bold text-sm">
+                    Upload Photo
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          <View className="mt-auto pb-6">
+            <TouchableOpacity
+              onPress={handleSkipAvatar}
+              disabled={loading}
+              className="py-4"
+              activeOpacity={0.7}
+            >
+              <Text className="text-blue-500 text-sm text-center font-semibold">
+                {loading ? "Uploading..." : "Skip for Now"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (mode === "verify") {
     return (
       <SafeAreaView className="flex-1 bg-white dark:bg-black">
@@ -195,6 +466,7 @@ export default function AuthScreen() {
               <Image
                 source={require("@/assets/images/app_icon.png")}
                 className="w-16 h-16"
+                alt="logo"
               />
             </View>
 
@@ -296,7 +568,7 @@ export default function AuthScreen() {
                 Trouble Logging In?
               </Text>
               <Text className="text-gray-500 dark:text-zinc-400 text-sm text-center mb-8 px-4">
-                Enter your email and we'll send you a code to reset your
+                Enter your email and we will send you a code to reset your
                 password.
               </Text>
 
@@ -487,7 +759,7 @@ export default function AuthScreen() {
             {mode === "login" ? (
               <>
                 <InputField
-                  placeholder="Phone number, email or username"
+                  placeholder="Email or username"
                   value={form.email}
                   onChangeText={(t: string) => setForm({ ...form, email: t })}
                 />

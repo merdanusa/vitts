@@ -338,6 +338,45 @@ export interface ResetPasswordResponse {
   message: string;
 }
 
+export interface VerifyEmailResponse {
+  token: string;
+  user: {
+    id: string;
+    name: string;
+    login: string;
+    email: string | null;
+    avatar: string;
+    isOnline: boolean;
+    verified: boolean;
+  };
+}
+
+export const verifyEmail = async (
+  data: { code: string },
+): Promise<VerifyEmailResponse> => {
+  console.log("[AUTH] Verifying email with code:", data.code);
+
+  try {
+    const res = await api.post<VerifyEmailResponse>(
+      "/api/auth/verify-email",
+      data, 
+    );
+
+    if (res.data.token) {
+      await AsyncStorage.setItem("token", res.data.token);
+      console.log("[AUTH] Token saved after email verification");
+    }
+
+    return res.data;
+  } catch (err: any) {
+    console.error(
+      "[AUTH] Email verification failed:",
+      err.response?.data || err.message,
+    );
+    throw err;
+  }
+};
+
 export const resetPassword = async (
   data: ResetPasswordPayload,
 ): Promise<ResetPasswordResponse> => {
