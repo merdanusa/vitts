@@ -2,13 +2,17 @@ import { logout as apiLogout, getCurrentUser } from "@/services/api";
 import { RootState } from "@/store";
 import { logout as logoutAction } from "@/store/userSlice";
 import { useRouter } from "expo-router";
-import { Radio, Settings, Share2 } from "lucide-react-native";
+import { Ban, Info, Radio, Settings, Share2, X } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
   Text,
   TouchableOpacity,
   View,
@@ -17,9 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
 
 const { width, height } = Dimensions.get("window");
-const HEADER_HEIGHT = 60;
 const AVATAR_SIZE = 120;
-const HEADER_EXPANDED_HEIGHT = 300;
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -29,12 +31,26 @@ export default function ProfileScreen() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  useEffect(() => {
+    if (avatarModalVisible) {
+      scaleAnim.setValue(0);
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: false,
+        friction: 8,
+        tension: 40,
+      }).start();
+    }
+  }, [avatarModalVisible]);
 
   const fetchProfile = async () => {
     try {
@@ -65,42 +81,42 @@ export default function ProfileScreen() {
     ]);
   };
 
-  // Avatar animations based on scroll
-  const avatarScale = scrollY.interpolate({
-    inputRange: [-100, 0],
-    outputRange: [1.5, 1],
-    extrapolate: "clamp",
-  });
+  const openAvatarModal = () => {
+    setAvatarModalVisible(true);
+  };
 
-  const avatarTranslateY = scrollY.interpolate({
-    inputRange: [-100, 0],
-    outputRange: [-50, 0],
-    extrapolate: "clamp",
-  });
+  const closeAvatarModal = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start(() => {
+      setAvatarModalVisible(false);
+    });
+  };
 
-  const headerHeight = scrollY.interpolate({
-    inputRange: [-100, 0],
-    outputRange: [HEADER_EXPANDED_HEIGHT + 100, HEADER_EXPANDED_HEIGHT],
-    extrapolate: "clamp",
-  });
+  const handleShare = () => {
+    Alert.alert("Share", "Share profile feature");
+    closeAvatarModal();
+  };
 
-  const avatarBorderRadius = scrollY.interpolate({
-    inputRange: [-100, 0],
-    outputRange: [0, AVATAR_SIZE / 2],
-    extrapolate: "clamp",
-  });
+  const handleInfo = () => {
+    Alert.alert("Info", "View profile info feature");
+    closeAvatarModal();
+  };
 
-  const avatarWidth = scrollY.interpolate({
-    inputRange: [-100, 0],
-    outputRange: [width, AVATAR_SIZE],
-    extrapolate: "clamp",
-  });
-
-  const avatarHeight = scrollY.interpolate({
-    inputRange: [-100, 0],
-    outputRange: [width, AVATAR_SIZE],
-    extrapolate: "clamp",
-  });
+  const handleBlock = () => {
+    Alert.alert("Block", "Block user feature", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Block",
+        style: "destructive",
+        onPress: () => {
+          closeAvatarModal();
+        },
+      },
+    ]);
+  };
 
   if (loading) {
     return (
@@ -131,15 +147,9 @@ export default function ProfileScreen() {
       style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
       className="flex-1"
     >
-      {/* Fixed Header */}
       <View
         style={{
           borderBottomColor: isDark ? "#262626" : "#dbdbdb",
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
           backgroundColor: isDark ? "#000000" : "#ffffff",
         }}
         className="flex-row items-center justify-between px-4 py-3 border-b"
@@ -157,65 +167,41 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <Animated.ScrollView
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        contentContainerStyle={{ paddingTop: HEADER_HEIGHT }}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false },
-        )}
-      >
-        {/* Expandable Avatar Header */}
-        <Animated.View
-          style={{
-            height: headerHeight,
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-          <Animated.View
-            style={{
-              transform: [
-                { translateY: avatarTranslateY },
-                { scale: avatarScale },
-              ],
-            }}
-          >
-            {user.avatar && user.avatar !== "M" ? (
-              <Animated.Image
-                source={{ uri: user.avatar }}
-                style={{
-                  width: avatarWidth,
-                  height: avatarHeight,
-                  borderRadius: avatarBorderRadius,
-                }}
-              />
-            ) : (
-              <Animated.View
-                style={{
-                  backgroundColor: isDark ? "#262626" : "#f3f4f6",
-                  width: avatarWidth,
-                  height: avatarHeight,
-                  borderRadius: avatarBorderRadius,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text
-                  style={{ color: isDark ? "#a1a1aa" : "#9ca3af" }}
-                  className="text-5xl font-bold"
-                >
-                  {user.name?.charAt(0)?.toUpperCase() || "U"}
-                </Text>
-              </Animated.View>
-            )}
-          </Animated.View>
-        </Animated.View>
-
+      <ScrollView showsVerticalScrollIndicator={false}>
         <View className="px-4 py-6">
           <View className="items-center mb-6">
+            <Pressable onLongPress={openAvatarModal} delayLongPress={300}>
+              {user.avatar && user.avatar !== "M" ? (
+                <Image
+                  source={{ uri: user.avatar }}
+                  style={{
+                    width: AVATAR_SIZE,
+                    height: AVATAR_SIZE,
+                    borderRadius: AVATAR_SIZE / 2,
+                    marginBottom: 16,
+                  }}
+                />
+              ) : (
+                <View
+                  style={{
+                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                    width: AVATAR_SIZE,
+                    height: AVATAR_SIZE,
+                    borderRadius: AVATAR_SIZE / 2,
+                    marginBottom: 16,
+                  }}
+                  className="items-center justify-center"
+                >
+                  <Text
+                    style={{ color: isDark ? "#a1a1aa" : "#9ca3af" }}
+                    className="text-5xl font-bold"
+                  >
+                    {user.name?.charAt(0)?.toUpperCase() || "U"}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+
             <Text
               style={{ color: isDark ? "#ffffff" : "#000000" }}
               className="text-xl font-bold mb-1"
@@ -327,7 +313,138 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
+
+      <Modal
+        visible={avatarModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAvatarModal}
+        statusBarTranslucent
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0, 0, 0, 0.95)" }}>
+          <TouchableOpacity
+            onPress={closeAvatarModal}
+            style={{
+              position: "absolute",
+              top: 50,
+              right: 20,
+              zIndex: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+              borderRadius: 20,
+              padding: 8,
+            }}
+          >
+            <X size={24} color="#ffffff" />
+          </TouchableOpacity>
+
+          <Pressable style={{ flex: 1 }} onPress={closeAvatarModal}>
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Animated.View
+                style={{
+                  transform: [{ scale: scaleAnim }],
+                }}
+              >
+                {user.avatar && user.avatar !== "M" ? (
+                  <Image
+                    source={{ uri: user.avatar }}
+                    style={{
+                      width: width * 0.9,
+                      height: width * 0.9,
+                      borderRadius: 12,
+                    }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                      width: width * 0.9,
+                      height: width * 0.9,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      style={{ color: isDark ? "#a1a1aa" : "#9ca3af" }}
+                      className="text-8xl font-bold"
+                    >
+                      {user.name?.charAt(0)?.toUpperCase() || "U"}
+                    </Text>
+                  </View>
+                )}
+              </Animated.View>
+            </View>
+          </Pressable>
+
+          <View
+            style={{
+              position: "absolute",
+              bottom: 40,
+              left: 0,
+              right: 0,
+              paddingHorizontal: 20,
+            }}
+          >
+            <View className="flex-row gap-3 justify-center">
+              <TouchableOpacity
+                onPress={handleShare}
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.15)",
+                  borderRadius: 50,
+                  padding: 16,
+                  alignItems: "center",
+                  flex: 1,
+                }}
+              >
+                <Share2 size={24} color="#ffffff" />
+                <Text className="text-white text-xs mt-2 font-semibold">
+                  Share
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleInfo}
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.15)",
+                  borderRadius: 50,
+                  padding: 16,
+                  alignItems: "center",
+                  flex: 1,
+                }}
+              >
+                <Info size={24} color="#ffffff" />
+                <Text className="text-white text-xs mt-2 font-semibold">
+                  Info
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleBlock}
+                style={{
+                  backgroundColor: "rgba(239, 68, 68, 0.25)",
+                  borderRadius: 50,
+                  padding: 16,
+                  alignItems: "center",
+                  flex: 1,
+                }}
+              >
+                <Ban size={24} color="#ef4444" />
+                <Text className="text-red-500 text-xs mt-2 font-semibold">
+                  Block
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -346,16 +463,16 @@ function FriendSkeleton({ isDark }: { isDark: boolean }) {
           <View
             style={{
               backgroundColor: isDark ? "#262626" : "#e5e7eb",
+              width: "60%",
             }}
             className="h-4 rounded mb-2"
-            style={{ width: "60%" }}
           />
           <View
             style={{
               backgroundColor: isDark ? "#1f1f1f" : "#f3f4f6",
+              width: "40%",
             }}
             className="h-3 rounded"
-            style={{ width: "40%" }}
           />
         </View>
       </View>

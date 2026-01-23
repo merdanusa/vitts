@@ -10,7 +10,6 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { Appearance } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Provider } from "react-redux";
 
 SplashScreen.preventAutoHideAsync();
@@ -52,18 +51,16 @@ function RootLayoutContent() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
-      <GluestackUIProvider mode={isDark ? "dark" : "light"}>
-        <QueryClientProvider client={queryClient}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="auth" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-          </Stack>
-          <StatusBar style={isDark ? "light" : "dark"} />
-        </QueryClientProvider>
-      </GluestackUIProvider>
-    </SafeAreaView>
+    <GluestackUIProvider mode={isDark ? "dark" : "light"}>
+      <QueryClientProvider client={queryClient}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+        </Stack>
+        <StatusBar style={isDark ? "light" : "dark"} />
+      </QueryClientProvider>
+    </GluestackUIProvider>
   );
 }
 

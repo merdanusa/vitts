@@ -1,14 +1,138 @@
+import { Button } from "@/components/ui/button";
 import { HStack } from "@/components/ui/hstack";
 import { Text } from "@/components/ui/text";
-import React from "react";
+import { VStack } from "@/components/ui/vstack";
+import { createOrGetChat, searchUsers } from "@/services/api";
+import { useNavigation } from "@react-navigation/native";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Platform,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+interface User {
+  id: string;
+  name: string;
+  login: string;
+  avatar: string;
+  isOnline: boolean;
+}
+
 const DiscoverScreen = () => {
-  return (
-    <SafeAreaView className="flex-1">
-      <HStack>
-        <Text>DiscoverScreen</Text>
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [addingUserId, setAddingUserId] = useState<string | null>(null);
+  const navigation = useNavigation(); // For navigating to chat screen
+
+  const handleSearch = async (query: string) => {
+    if (query.trim().length < 2) {
+      setUsers([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const results = await searchUsers(query);
+      setUsers(results);
+    } catch (error) {
+      Alert.alert("Error", "Failed to search users");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      handleSearch(searchQuery);
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+
+  const handleAddUser = async (userId: string) => {
+    setAddingUserId(userId);
+    try {
+      const chat = await createOrGetChat({ otherUserId: userId });
+      Alert.alert("Success", "Chat created/opened!");
+      navigation.navigate("Chat", { chatId: chat.id });
+    } catch (error) {
+      Alert.alert("Error", "Failed to add user");
+      console.error(error);
+    } finally {
+      setAddingUserId(null);
+    }
+  };
+
+  const renderUserItem = ({ item }: { item: User }) => (
+    <HStack className="px-4 py-3 border-b border-gray-200 items-center justify-between">
+      <HStack className="items-center flex-1">
+        <Image
+          source={{ uri: item.avatar || "https://via.placeholder.com/40" }}
+          className="w-10 h-10 rounded-full mr-3"
+        />
+        <VStack>
+          <Text className="font-semibold text-base">{item.name}</Text>
+          <Text className="text-sm text-gray-500">@{item.login}</Text>
+        </VStack>
+        {item.isOnline && (
+          <View className="ml-2 w-2 h-2 rounded-full bg-green-500" />
+        )}
       </HStack>
+      <Button
+        className={`px-4 py-2 rounded-full ${addingUserId === item.id ? "bg-gray-300" : "bg-blue-500"}`}
+        disabled={addingUserId === item.id}
+        onPress={() => handleAddUser(item.id)}
+      >
+        <Text className="text-white text-sm">
+          {addingUserId === item.id ? "Adding..." : "Add"}
+        </Text>
+      </Button>
+    </HStack>
+  );
+
+  return (
+    <SafeAreaView className="flex-1 bg-white">
+      <VStack className="flex-1">
+        {/* Search Bar - iOS stylish with rounded corners, shadow */}
+        <View className="px-4 py-3">
+          <TextInput
+            className="bg-gray-100 rounded-full px-4 py-3 text-base shadow-sm"
+            placeholder="Search users..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            style={Platform.OS === "ios" ? { height: 44 } : {}}
+          />
+        </View>
+
+        {/* Loading Indicator */}
+        {loading && (
+          <ActivityIndicator className="mt-4" size="large" color="#007AFF" /> // iOS blue
+        )}
+
+        {/* User List */}
+        <FlatList
+          data={users}
+          keyExtractor={(item) => item.id}
+          renderItem={renderUserItem}
+          ListEmptyComponent={
+            !loading && searchQuery ? (
+              <Text className="text-center text-gray-500 mt-10">
+                No users found
+              </Text>
+            ) : null
+          }
+          className="flex-1"
+        />
+      </VStack>
     </SafeAreaView>
   );
 };
