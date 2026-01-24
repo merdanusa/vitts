@@ -20,6 +20,7 @@ interface IOSAlertProps {
   message?: string;
   buttons: AlertButton[];
   onDismiss?: () => void;
+  isDark?: boolean;
 }
 
 export const IOSAlert: React.FC<IOSAlertProps> = ({
@@ -28,6 +29,7 @@ export const IOSAlert: React.FC<IOSAlertProps> = ({
   message,
   buttons,
   onDismiss,
+  isDark = false,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -82,7 +84,9 @@ export const IOSAlert: React.FC<IOSAlertProps> = ({
                 <View
                   style={{
                     width: 0.5,
-                    backgroundColor: "rgba(0, 0, 0, 0.15)",
+                    backgroundColor: isDark
+                      ? "rgba(255, 255, 255, 0.1)"
+                      : "rgba(0, 0, 0, 0.15)",
                   }}
                 />
               )}
@@ -117,7 +121,9 @@ export const IOSAlert: React.FC<IOSAlertProps> = ({
               <View
                 style={{
                   height: 0.5,
-                  backgroundColor: "rgba(0, 0, 0, 0.15)",
+                  backgroundColor: isDark
+                    ? "rgba(255, 255, 255, 0.1)"
+                    : "rgba(0, 0, 0, 0.15)",
                 }}
               />
             )}
@@ -155,8 +161,9 @@ export const IOSAlert: React.FC<IOSAlertProps> = ({
       <Animated.View
         style={{
           opacity: fadeAnim,
+          backgroundColor: isDark ? "rgba(0, 0, 0, 0.6)" : "rgba(0, 0, 0, 0.4)",
         }}
-        className="flex-1 bg-black/40 justify-center items-center"
+        className="flex-1 justify-center items-center"
       >
         <Pressable className="absolute inset-0" onPress={onDismiss} />
         <Animated.View
@@ -165,14 +172,40 @@ export const IOSAlert: React.FC<IOSAlertProps> = ({
           }}
           className="w-[80%] max-w-[270px]"
         >
-          <View className="bg-[#F9F9F9] rounded-2xl overflow-hidden">
+          <View
+            style={{
+              backgroundColor: isDark ? "#1c1c1e" : "#F9F9F9",
+              borderRadius: 14,
+              overflow: "hidden",
+            }}
+          >
             {title && (
-              <Text className="text-center text-[17px] font-semibold text-black pt-5 px-4 pb-1">
+              <Text
+                style={{
+                  color: isDark ? "#ffffff" : "#000000",
+                  fontSize: 17,
+                  fontWeight: "600",
+                  textAlign: "center",
+                  paddingTop: 20,
+                  paddingHorizontal: 16,
+                  paddingBottom: 4,
+                }}
+              >
                 {title}
               </Text>
             )}
             {message && (
-              <Text className="text-center text-[13px] text-black px-4 pt-1 pb-5 leading-[18px]">
+              <Text
+                style={{
+                  color: isDark ? "#ffffff" : "#000000",
+                  fontSize: 13,
+                  textAlign: "center",
+                  paddingHorizontal: 16,
+                  paddingTop: 4,
+                  paddingBottom: 20,
+                  lineHeight: 18,
+                }}
+              >
                 {message}
               </Text>
             )}
@@ -180,7 +213,9 @@ export const IOSAlert: React.FC<IOSAlertProps> = ({
             <View
               style={{
                 height: 0.5,
-                backgroundColor: "rgba(0, 0, 0, 0.15)",
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.1)"
+                  : "rgba(0, 0, 0, 0.15)",
               }}
             />
 

@@ -82,19 +82,10 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
-    setAlertConfig(
-      showIOSAlert.destructive(
-        "Logout",
-        "Are you sure you want to logout?",
-        "Logout",
-        async () => {
-          await apiLogout();
-          dispatch(logoutAction());
-          router.replace("/auth");
-        },
-      ),
-    );
+  const handleLogout = async () => {
+    await apiLogout();
+    dispatch(logoutAction());
+    router.replace("/auth");
   };
 
   const handleThemeChange = (mode: "light" | "dark" | "system") => {
@@ -114,7 +105,7 @@ export default function ProfileScreen() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
@@ -347,6 +338,7 @@ export default function ProfileScreen() {
           message={alertConfig.message}
           buttons={alertConfig.buttons}
           onDismiss={() => setAlertConfig(null)}
+          isDark={isDark}
         />
       )}
     </SafeAreaView>

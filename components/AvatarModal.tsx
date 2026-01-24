@@ -71,7 +71,14 @@ export function AvatarModal({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={{ flex: 1, backgroundColor: "rgba(0, 0, 0, 0.95)" }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: isDark
+            ? "rgba(0, 0, 0, 0.95)"
+            : "rgba(0, 0, 0, 0.9)",
+        }}
+      >
         <TouchableOpacity
           onPress={onClose}
           style={{
@@ -79,7 +86,9 @@ export function AvatarModal({
             top: 50,
             right: 20,
             zIndex: 10,
-            backgroundColor: "rgba(255, 255, 255, 0.15)",
+            backgroundColor: isDark
+              ? "rgba(255, 255, 255, 0.15)"
+              : "rgba(255, 255, 255, 0.2)",
             borderRadius: 20,
             padding: 8,
           }}
@@ -114,7 +123,7 @@ export function AvatarModal({
               ) : (
                 <View
                   style={{
-                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                    backgroundColor: isDark ? "#262626" : "#e5e7eb",
                     width: width * 0.9,
                     height: width * 0.9,
                     borderRadius: 12,
@@ -123,7 +132,7 @@ export function AvatarModal({
                   }}
                 >
                   <Text
-                    style={{ color: isDark ? "#a1a1aa" : "#9ca3af" }}
+                    style={{ color: isDark ? "#a1a1aa" : "#737373" }}
                     className="text-8xl font-bold"
                   >
                     {user.name?.charAt(0)?.toUpperCase() || "U"}
@@ -147,7 +156,9 @@ export function AvatarModal({
             <TouchableOpacity
               onPress={handleInfo}
               style={{
-                backgroundColor: "rgba(255, 255, 255, 0.15)",
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.15)"
+                  : "rgba(255, 255, 255, 0.25)",
                 borderRadius: 50,
                 padding: 18,
                 alignItems: "center",
@@ -164,7 +175,9 @@ export function AvatarModal({
             <TouchableOpacity
               onPress={handleShare}
               style={{
-                backgroundColor: "rgba(255, 255, 255, 0.15)",
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.15)"
+                  : "rgba(255, 255, 255, 0.25)",
                 borderRadius: 50,
                 padding: 18,
                 alignItems: "center",
