@@ -24,6 +24,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Clipboard,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -39,7 +40,6 @@ export default function ProfileScreen() {
   const dispatch = useDispatch();
   const isDark = useSelector((state: RootState) => state.theme.isDark);
   const currentThemeMode = useSelector((state: RootState) => state.theme.mode);
-  const userFromRedux = useSelector((state: RootState) => state.user);
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -173,27 +173,9 @@ export default function ProfileScreen() {
   };
 
   const handleShare = () => {
+    Clipboard.setString(`@${user.login}`);
     setAlertConfig(
-      showIOSAlert.multiOption(
-        "Share Profile",
-        "Choose how you'd like to share your profile",
-        [
-          {
-            text: "Copy Link",
-            onPress: () => console.log("Copy link"),
-            style: "default",
-          },
-          {
-            text: "Share via...",
-            onPress: () => console.log("Share via"),
-            style: "default",
-          },
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-        ],
-      ),
+      showIOSAlert.simple("Copied", `@${user.login} copied to clipboard`),
     );
   };
 
@@ -203,7 +185,10 @@ export default function ProfileScreen() {
         style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
         className="flex-1 justify-center items-center"
       >
-        <ActivityIndicator size="large" color="#3b82f6" />
+        <ActivityIndicator
+          size="small"
+          color={isDark ? "#ffffff" : "#000000"}
+        />
       </SafeAreaView>
     );
   }
@@ -214,7 +199,10 @@ export default function ProfileScreen() {
         style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
         className="flex-1 justify-center items-center"
       >
-        <Text className="text-red-500 text-base">
+        <Text
+          style={{ color: isDark ? "#ef4444" : "#dc2626" }}
+          className="text-base"
+        >
           {error || "No profile data"}
         </Text>
       </SafeAreaView>
@@ -228,10 +216,11 @@ export default function ProfileScreen() {
     >
       <View
         style={{
-          borderBottomColor: isDark ? "#262626" : "#dbdbdb",
+          borderBottomWidth: 0.5,
+          borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
           backgroundColor: isDark ? "#000000" : "#ffffff",
         }}
-        className="flex-row items-center justify-between px-4 py-3 border-b"
+        className="flex-row items-center justify-between px-4 py-3"
       >
         <View className="flex-1">
           <Text
@@ -244,8 +233,9 @@ export default function ProfileScreen() {
         <TouchableOpacity
           onPress={() => setSettingsModalVisible(true)}
           className="p-2"
+          activeOpacity={0.7}
         >
-          <Settings size={24} color={isDark ? "#ffffff" : "#000000"} />
+          <Settings size={22} color={isDark ? "#ffffff" : "#000000"} />
         </TouchableOpacity>
       </View>
 
@@ -263,10 +253,10 @@ export default function ProfileScreen() {
 
           <View
             style={{
-              borderTopColor: isDark ? "#262626" : "#dbdbdb",
+              borderTopWidth: 0.5,
+              borderTopColor: isDark ? "#1a1a1a" : "#f3f4f6",
               paddingTop: 20,
             }}
-            className="border-t"
           >
             <View className="flex-row items-center justify-between mb-4">
               <Text
@@ -275,8 +265,8 @@ export default function ProfileScreen() {
               >
                 Suggested Friends
               </Text>
-              <TouchableOpacity>
-                <Text className="text-blue-500 text-sm font-semibold">
+              <TouchableOpacity activeOpacity={0.7}>
+                <Text className="text-[#007AFF] text-sm font-semibold">
                   See All
                 </Text>
               </TouchableOpacity>
@@ -289,20 +279,21 @@ export default function ProfileScreen() {
 
           <View
             style={{
-              borderTopColor: isDark ? "#262626" : "#dbdbdb",
+              borderTopWidth: 0.5,
+              borderTopColor: isDark ? "#1a1a1a" : "#f3f4f6",
               paddingTop: 20,
               marginTop: 20,
             }}
-            className="border-t"
           >
             <View className="items-center py-12">
               <View
                 style={{
-                  borderColor: isDark ? "#262626" : "#dbdbdb",
+                  borderWidth: 2,
+                  borderColor: isDark ? "#1a1a1a" : "#f3f4f6",
                 }}
-                className="w-20 h-20 rounded-full border-2 items-center justify-center mb-4"
+                className="w-20 h-20 rounded-full items-center justify-center mb-4"
               >
-                <Radio size={36} color={isDark ? "#a1a1aa" : "#737373"} />
+                <Radio size={36} color={isDark ? "#737373" : "#a1a1aa"} />
               </View>
               <Text
                 style={{ color: isDark ? "#ffffff" : "#000000" }}
@@ -311,7 +302,7 @@ export default function ProfileScreen() {
                 No VibeCasts Yet
               </Text>
               <Text
-                style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+                style={{ color: isDark ? "#737373" : "#a1a1aa" }}
                 className="text-sm text-center px-8"
               >
                 When you create VibeCasts, they'll appear here.
@@ -327,7 +318,6 @@ export default function ProfileScreen() {
         isDark={isDark}
         scaleAnim={scaleAnim}
         onClose={() => setAvatarModalVisible(false)}
-        onShare={handleShare}
         onShowAlert={setAlertConfig}
       />
 

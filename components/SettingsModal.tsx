@@ -24,52 +24,46 @@ export function SettingsModal({
   return (
     <Modal
       visible={visible}
-      transparent
       animationType="slide"
+      transparent
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View
+      <Pressable className="flex-1 bg-black/50 justify-end" onPress={onClose}>
+        <Pressable
           style={{
             backgroundColor: isDark ? "#000000" : "#ffffff",
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            paddingBottom: 40,
           }}
+          className="rounded-t-3xl p-6"
+          onPress={(e) => e.stopPropagation()}
         >
-          <View
-            className="px-4 py-4 border-b"
-            style={{ borderBottomColor: isDark ? "#262626" : "#dbdbdb" }}
+          <Text
+            style={{ color: isDark ? "#ffffff" : "#000000" }}
+            className="text-2xl font-bold mb-6"
           >
-            <Text
-              style={{ color: isDark ? "#ffffff" : "#000000" }}
-              className="text-xl font-bold"
-            >
-              Settings
-            </Text>
-          </View>
+            Settings
+          </Text>
 
-          <View className="px-4 py-4">
-            <Text
-              style={{ color: isDark ? "#ffffff" : "#000000" }}
-              className="text-base font-semibold mb-3"
-            >
-              Theme
-            </Text>
+          <Text
+            style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+            className="text-sm font-medium mb-3"
+          >
+            Appearance
+          </Text>
 
+          <View className="mb-6">
             <TouchableOpacity
               onPress={() => onThemeChange("light")}
               style={{
                 backgroundColor:
                   currentThemeMode === "light"
-                    ? "#3b82f6"
+                    ? "#007AFF"
                     : isDark
-                      ? "#262626"
-                      : "#f3f4f6",
+                      ? "#1a1a1a"
+                      : "#f9fafb",
                 marginBottom: 8,
               }}
-              className="flex-row items-center p-4 rounded-lg"
+              className="flex-row items-center p-4 rounded-xl"
+              activeOpacity={0.7}
             >
               <Sun
                 size={20}
@@ -87,8 +81,8 @@ export function SettingsModal({
                     currentThemeMode === "light"
                       ? "#ffffff"
                       : isDark
-                        ? "#ffffff"
-                        : "#000000",
+                        ? "#a1a1aa"
+                        : "#737373",
                 }}
                 className="ml-3 text-base font-medium"
               >
@@ -101,13 +95,14 @@ export function SettingsModal({
               style={{
                 backgroundColor:
                   currentThemeMode === "dark"
-                    ? "#3b82f6"
+                    ? "#007AFF"
                     : isDark
-                      ? "#262626"
-                      : "#f3f4f6",
+                      ? "#1a1a1a"
+                      : "#f9fafb",
                 marginBottom: 8,
               }}
-              className="flex-row items-center p-4 rounded-lg"
+              className="flex-row items-center p-4 rounded-xl"
+              activeOpacity={0.7}
             >
               <Moon
                 size={20}
@@ -125,8 +120,8 @@ export function SettingsModal({
                     currentThemeMode === "dark"
                       ? "#ffffff"
                       : isDark
-                        ? "#ffffff"
-                        : "#000000",
+                        ? "#a1a1aa"
+                        : "#737373",
                 }}
                 className="ml-3 text-base font-medium"
               >
@@ -139,13 +134,13 @@ export function SettingsModal({
               style={{
                 backgroundColor:
                   currentThemeMode === "system"
-                    ? "#3b82f6"
+                    ? "#007AFF"
                     : isDark
-                      ? "#262626"
-                      : "#f3f4f6",
-                marginBottom: 8,
+                      ? "#1a1a1a"
+                      : "#f9fafb",
               }}
-              className="flex-row items-center p-4 rounded-lg"
+              className="flex-row items-center p-4 rounded-xl"
+              activeOpacity={0.7}
             >
               <Monitor
                 size={20}
@@ -163,8 +158,8 @@ export function SettingsModal({
                     currentThemeMode === "system"
                       ? "#ffffff"
                       : isDark
-                        ? "#ffffff"
-                        : "#000000",
+                        ? "#a1a1aa"
+                        : "#737373",
                 }}
                 className="ml-3 text-base font-medium"
               >
@@ -173,17 +168,26 @@ export function SettingsModal({
             </TouchableOpacity>
           </View>
 
-          <View className="px-4 mt-4">
-            <TouchableOpacity
-              onPress={onLogout}
-              style={{ backgroundColor: "#ef4444" }}
-              className="p-4 rounded-lg items-center"
+          <TouchableOpacity
+            onPress={() => {
+              onClose();
+              onLogout();
+            }}
+            style={{
+              backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
+            }}
+            className="p-4 rounded-xl"
+            activeOpacity={0.7}
+          >
+            <Text
+              style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+              className="text-center text-base font-medium"
             >
-              <Text className="text-white text-base font-semibold">Logout</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+              Logout
+            </Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }

@@ -1,16 +1,14 @@
-import { HStack } from "@/components/ui/hstack";
-import { Text } from "@/components/ui/text";
-import { VStack } from "@/components/ui/vstack";
+import { IOSAlert, showIOSAlert } from "@/components/IOSAlertDialog";
 import { createOrGetChat, getAllUsers, searchUsers } from "@/services/api";
 import { RootState } from "@/store";
 import { useNavigation } from "@react-navigation/native";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
-  Animated,
+  ActivityIndicator,
   FlatList,
   Image,
   Platform,
+  Text,
   TextInput,
   TouchableOpacity,
   View,
@@ -27,44 +25,6 @@ interface User {
   isOnline: boolean;
 }
 
-const SKELETON_COUNT = 8;
-
-const SkeletonUserItem: React.FC<{
-  animatedValue: Animated.Value;
-  isDark: boolean;
-}> = ({ animatedValue, isDark }) => {
-  return (
-    <Animated.View
-      style={{
-        opacity: animatedValue,
-        backgroundColor: isDark ? "#1f1f1f" : "#ffffff",
-      }}
-      className="mx-4 mb-3 rounded-2xl p-4"
-    >
-      <HStack className="items-center">
-        <View
-          style={{ backgroundColor: isDark ? "#262626" : "#e5e7eb" }}
-          className="w-14 h-14 rounded-full mr-3"
-        />
-        <VStack className="flex-1">
-          <View
-            style={{ backgroundColor: isDark ? "#262626" : "#e5e7eb" }}
-            className="h-4 rounded-lg w-3/5 mb-2"
-          />
-          <View
-            style={{ backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6" }}
-            className="h-3 rounded-lg w-2/5"
-          />
-        </VStack>
-        <View
-          style={{ backgroundColor: isDark ? "#262626" : "#e5e7eb" }}
-          className="w-20 h-9 rounded-full"
-        />
-      </HStack>
-    </Animated.View>
-  );
-};
-
 const getInitials = (name: string): string => {
   const parts = name.trim().split(" ");
   if (parts.length >= 2) {
@@ -75,36 +35,12 @@ const getInitials = (name: string): string => {
 
 const DiscoverScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
-
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [addingUserId, setAddingUserId] = useState<string | null>(null);
+  const [alertConfig, setAlertConfig] = useState<any>(null);
   const navigation = useNavigation();
-
-  const pulseAnim = useState(new Animated.Value(0.4))[0];
-
-  useEffect(() => {
-    if (loading) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 0.4,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ]),
-      ).start();
-    } else {
-      pulseAnim.stopAnimation();
-      pulseAnim.setValue(1);
-    }
-  }, [loading]);
 
   const handleSearch = async (query: string) => {
     const trimmed = query.trim();
@@ -115,15 +51,11 @@ const DiscoverScreen = () => {
 
     setLoading(true);
     try {
-      let results: User[];
-      if (trimmed === "") {
-        results = await getAllUsers();
-      } else {
-        results = await searchUsers(query);
-      }
+      const results =
+        trimmed === "" ? await getAllUsers() : await searchUsers(query);
       setUsers(results);
     } catch (error) {
-      Alert.alert("Error", "Failed to load users");
+      setAlertConfig(showIOSAlert.simple("Error", "Failed to load users"));
       console.error(error);
     } finally {
       setLoading(false);
@@ -131,9 +63,7 @@ const DiscoverScreen = () => {
   };
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      handleSearch(searchQuery);
-    }, 500);
+    const timeout = setTimeout(() => handleSearch(searchQuery), 500);
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
@@ -141,10 +71,13 @@ const DiscoverScreen = () => {
     setAddingUserId(userId);
     try {
       const chat = await createOrGetChat({ otherUserId: userId });
-      Alert.alert("Success", "Chat created!");
-      navigation.navigate("Chat", { chatId: chat.id });
+      setAlertConfig(
+        showIOSAlert.simple("Success", "Chat created!", () => {
+          navigation.navigate("Chat", { chatId: chat.id });
+        }),
+      );
     } catch (error) {
-      Alert.alert("Error", "Failed to create chat");
+      setAlertConfig(showIOSAlert.simple("Error", "Failed to create chat"));
       console.error(error);
     } finally {
       setAddingUserId(null);
@@ -160,30 +93,35 @@ const DiscoverScreen = () => {
       <TouchableOpacity
         activeOpacity={0.7}
         style={{
-          backgroundColor: isDark ? "#1f1f1f" : "#ffffff",
-          shadowColor: isDark ? "#000" : "#000",
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: isDark ? 0.3 : 0.05,
-          shadowRadius: 3,
-          elevation: 2,
+          backgroundColor: isDark ? "#000000" : "#ffffff",
+          borderBottomWidth: 0.5,
+          borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
         }}
-        className="mx-4 mb-3 rounded-2xl"
+        className="px-4 py-3"
       >
-        <HStack className="p-4 items-center">
+        <View className="flex-row items-center">
           <View className="mr-3 relative">
             {hasAvatar ? (
               <Image
                 source={{ uri: item.avatar }}
-                style={{ width: 56, height: 56, borderRadius: 28 }}
+                style={{ width: 48, height: 48, borderRadius: 24 }}
               />
             ) : (
               <View
                 style={{
-                  backgroundColor: isDark ? "#3b82f6" : "#3b82f6",
+                  backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
                 }}
-                className="w-14 h-14 rounded-full items-center justify-center"
+                className="items-center justify-center"
               >
-                <Text className="text-white text-xl font-bold">{initials}</Text>
+                <Text
+                  style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+                  className="text-lg font-medium"
+                >
+                  {initials}
+                </Text>
               </View>
             )}
             {item.isOnline && (
@@ -192,44 +130,31 @@ const DiscoverScreen = () => {
                   position: "absolute",
                   bottom: 0,
                   right: 0,
-                  width: 16,
-                  height: 16,
+                  width: 12,
+                  height: 12,
                   backgroundColor: "#22c55e",
-                  borderRadius: 8,
+                  borderRadius: 6,
                   borderWidth: 2,
-                  borderColor: isDark ? "#1f1f1f" : "#ffffff",
-                  shadowColor: "#22c55e",
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 0.5,
-                  shadowRadius: 4,
+                  borderColor: isDark ? "#000000" : "#ffffff",
                 }}
               />
             )}
           </View>
 
-          <VStack className="flex-1 mr-3">
+          <View className="flex-1 mr-3">
             <Text
-              style={{ color: isDark ? "#ffffff" : "#111827" }}
-              className="font-semibold text-base mb-0.5"
+              style={{ color: isDark ? "#ffffff" : "#000000" }}
+              className="font-medium text-base"
             >
               {item.name}
             </Text>
             <Text
-              style={{ color: isDark ? "#a1a1aa" : "#6b7280" }}
+              style={{ color: isDark ? "#737373" : "#a1a1aa" }}
               className="text-sm"
             >
               @{item.login}
             </Text>
-            {item.bio && (
-              <Text
-                style={{ color: isDark ? "#737373" : "#9ca3af" }}
-                className="text-xs mt-1"
-                numberOfLines={1}
-              >
-                {item.bio}
-              </Text>
-            )}
-          </VStack>
+          </View>
 
           <TouchableOpacity
             onPress={() => handleAddUser(item.id)}
@@ -238,119 +163,111 @@ const DiscoverScreen = () => {
             style={{
               backgroundColor: isAdding
                 ? isDark
-                  ? "#262626"
-                  : "#e5e7eb"
-                : "#3b82f6",
-              shadowColor: isAdding ? "transparent" : "#3b82f6",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.3,
-              shadowRadius: 4,
-              elevation: 3,
+                  ? "#1a1a1a"
+                  : "#f3f4f6"
+                : isDark
+                  ? "#ffffff"
+                  : "#000000",
             }}
-            className="px-5 py-2.5 rounded-full"
+            className="px-4 py-2 rounded-full"
           >
             <Text
               style={{
-                color: isAdding ? (isDark ? "#737373" : "#9ca3af") : "#ffffff",
+                color: isAdding
+                  ? isDark
+                    ? "#737373"
+                    : "#a1a1aa"
+                  : isDark
+                    ? "#000000"
+                    : "#ffffff",
               }}
-              className="text-sm font-semibold"
+              className="text-sm font-medium"
             >
-              {isAdding ? "Adding..." : "Add"}
+              {isAdding ? "..." : "Add"}
             </Text>
           </TouchableOpacity>
-        </HStack>
+        </View>
       </TouchableOpacity>
     );
   };
 
-  const renderSkeleton = () => (
-    <VStack className="mt-2">
-      {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
-        <SkeletonUserItem
-          key={index}
-          animatedValue={pulseAnim}
-          isDark={isDark}
-        />
-      ))}
-    </VStack>
-  );
-
   return (
     <SafeAreaView
-      style={{ backgroundColor: isDark ? "#000000" : "#f9fafb" }}
+      style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
       className="flex-1"
     >
-      <VStack className="flex-1">
+      <View className="flex-1">
         <View
           style={{
-            backgroundColor: isDark ? "#000000" : "#ffffff",
-            borderBottomWidth: isDark ? 0.5 : 0,
-            borderBottomColor: isDark ? "#262626" : "transparent",
+            borderBottomWidth: 0.5,
+            borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
           }}
           className="px-4 pt-2 pb-3"
         >
           <Text
-            style={{ color: isDark ? "#ffffff" : "#111827" }}
-            className="text-3xl font-bold mb-4"
+            style={{ color: isDark ? "#ffffff" : "#000000" }}
+            className="text-2xl font-bold mb-3"
           >
             Discover
           </Text>
 
-          <View className="relative">
-            <View className="absolute left-3 top-3 z-10">
-              <Text className="text-gray-400 text-base">🔍</Text>
-            </View>
-            <TextInput
-              style={{
-                backgroundColor: isDark ? "#1f1f1f" : "#f3f4f6",
-                color: isDark ? "#ffffff" : "#111827",
-                ...(Platform.OS === "ios" ? { height: 44 } : {}),
-              }}
-              className="rounded-xl pl-10 pr-4 py-3 text-base"
-              placeholder="Search users..."
-              placeholderTextColor={isDark ? "#737373" : "#9ca3af"}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-          </View>
+          <TextInput
+            style={{
+              backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
+              color: isDark ? "#ffffff" : "#000000",
+              borderWidth: 0.5,
+              borderColor: isDark ? "#262626" : "#e5e7eb",
+              ...(Platform.OS === "ios" ? { height: 40 } : {}),
+            }}
+            className="rounded-lg px-4 py-2 text-base"
+            placeholder="Search..."
+            placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
         </View>
 
-        <View className="flex-1 pt-3">
+        <View className="flex-1">
           {loading ? (
-            renderSkeleton()
+            <View className="flex-1 items-center justify-center">
+              <ActivityIndicator
+                size="small"
+                color={isDark ? "#ffffff" : "#000000"}
+              />
+            </View>
           ) : (
             <FlatList
               data={users}
               keyExtractor={(item) => item.id}
               renderItem={renderUserItem}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 20 }}
               ListEmptyComponent={() => (
-                <VStack className="items-center justify-center mt-20 px-8">
-                  <Text className="text-6xl mb-4">👥</Text>
+                <View className="items-center justify-center mt-32 px-8">
                   <Text
-                    style={{ color: isDark ? "#ffffff" : "#374151" }}
-                    className="text-lg font-semibold mb-1"
+                    style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+                    className="text-base text-center"
                   >
-                    {searchQuery.trim() ? "No users found" : "No users yet"}
+                    {searchQuery.trim() ? "No users found" : "Start searching"}
                   </Text>
-                  <Text
-                    style={{ color: isDark ? "#737373" : "#9ca3af" }}
-                    className="text-sm text-center"
-                  >
-                    {searchQuery.trim()
-                      ? "Try searching with a different keyword"
-                      : "Start searching to find people"}
-                  </Text>
-                </VStack>
+                </View>
               )}
             />
           )}
         </View>
-      </VStack>
+      </View>
+
+      {alertConfig && (
+        <IOSAlert
+          visible={true}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          onDismiss={() => setAlertConfig(null)}
+        />
+      )}
     </SafeAreaView>
   );
 };

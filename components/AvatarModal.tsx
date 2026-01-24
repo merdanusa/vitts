@@ -1,8 +1,9 @@
 import { showIOSAlert } from "@/components/IOSAlertDialog";
-import { Ban, Info, Share2, X } from "lucide-react-native";
+import { Info, Share2, X } from "lucide-react-native";
 import React from "react";
 import {
   Animated,
+  Clipboard,
   Dimensions,
   Image,
   Modal,
@@ -20,7 +21,6 @@ interface AvatarModalProps {
   isDark: boolean;
   scaleAnim: Animated.Value;
   onClose: () => void;
-  onShare: () => void;
   onShowAlert: (config: any) => void;
 }
 
@@ -30,33 +30,36 @@ export function AvatarModal({
   isDark,
   scaleAnim,
   onClose,
-  onShare,
   onShowAlert,
 }: AvatarModalProps) {
   const displayAvatar =
     user.avatar && user.avatar !== "M" && user.avatar !== "";
 
   const handleInfo = () => {
+    const memberSince = new Date(user.createdAt).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
     onShowAlert(
-      showIOSAlert.simple(
-        "Profile Info",
-        `Name: ${user.name}\nUsername: @${user.login}\nMember since: ${new Date(user.createdAt).toLocaleDateString()}`,
+      showIOSAlert.multiOption(
+        user.name,
+        `@${user.login}\n\nMember since ${memberSince}`,
+        [
+          {
+            text: "OK",
+            style: "cancel",
+          },
+        ],
       ),
     );
-    onClose();
   };
 
-  const handleBlock = () => {
+  const handleShare = () => {
+    Clipboard.setString(`@${user.login}`);
     onShowAlert(
-      showIOSAlert.destructive(
-        "Block User",
-        "Are you sure you want to block this user? They won't be able to see your profile or contact you.",
-        "Block",
-        () => {
-          console.log("User blocked");
-          onClose();
-        },
-      ),
+      showIOSAlert.simple("Copied", `@${user.login} copied to clipboard`),
     );
   };
 
@@ -76,10 +79,11 @@ export function AvatarModal({
             top: 50,
             right: 20,
             zIndex: 10,
-            backgroundColor: "rgba(255, 255, 255, 0.1)",
+            backgroundColor: "rgba(255, 255, 255, 0.15)",
             borderRadius: 20,
             padding: 8,
           }}
+          activeOpacity={0.7}
         >
           <X size={24} color="#ffffff" />
         </TouchableOpacity>
@@ -136,55 +140,41 @@ export function AvatarModal({
             bottom: 40,
             left: 0,
             right: 0,
-            paddingHorizontal: 20,
+            paddingHorizontal: 40,
           }}
         >
-          <View className="flex-row gap-3 justify-center">
-            <TouchableOpacity
-              onPress={onShare}
-              style={{
-                backgroundColor: "rgba(255, 255, 255, 0.15)",
-                borderRadius: 50,
-                padding: 16,
-                alignItems: "center",
-                flex: 1,
-              }}
-            >
-              <Share2 size={24} color="#ffffff" />
-              <Text className="text-white text-xs mt-2 font-semibold">
-                Share
-              </Text>
-            </TouchableOpacity>
-
+          <View className="flex-row gap-4 justify-center">
             <TouchableOpacity
               onPress={handleInfo}
               style={{
                 backgroundColor: "rgba(255, 255, 255, 0.15)",
                 borderRadius: 50,
-                padding: 16,
+                padding: 18,
                 alignItems: "center",
-                flex: 1,
+                width: 80,
               }}
+              activeOpacity={0.7}
             >
-              <Info size={24} color="#ffffff" />
+              <Info size={26} color="#ffffff" />
               <Text className="text-white text-xs mt-2 font-semibold">
                 Info
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={handleBlock}
+              onPress={handleShare}
               style={{
-                backgroundColor: "rgba(239, 68, 68, 0.25)",
+                backgroundColor: "rgba(255, 255, 255, 0.15)",
                 borderRadius: 50,
-                padding: 16,
+                padding: 18,
                 alignItems: "center",
-                flex: 1,
+                width: 80,
               }}
+              activeOpacity={0.7}
             >
-              <Ban size={24} color="#ef4444" />
-              <Text className="text-red-500 text-xs mt-2 font-semibold">
-                Block
+              <Share2 size={26} color="#ffffff" />
+              <Text className="text-white text-xs mt-2 font-semibold">
+                Share
               </Text>
             </TouchableOpacity>
           </View>
