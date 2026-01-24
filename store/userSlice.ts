@@ -40,6 +40,14 @@ const userSlice = createSlice({
       state.verified = !!verified;
       console.log("User state updated:", state);
     },
+    updateUserProfile: (state, action: PayloadAction<Partial<UserState>>) => {
+      Object.assign(state, action.payload);
+      console.log("User profile updated:", action.payload);
+    },
+    updateAvatar: (state, action: PayloadAction<string>) => {
+      state.avatar = action.payload;
+      console.log("Avatar updated:", action.payload);
+    },
     logout: () => {
       SecureStore.deleteItemAsync("userToken");
       return initialState;
@@ -47,5 +55,6 @@ const userSlice = createSlice({
   },
 });
 
-export const { setUser, logout } = userSlice.actions;
+export const { setUser, updateUserProfile, updateAvatar, logout } =
+  userSlice.actions;
 export default userSlice.reducer;

@@ -351,15 +351,15 @@ export interface VerifyEmailResponse {
   };
 }
 
-export const verifyEmail = async (
-  data: { code: string },
-): Promise<VerifyEmailResponse> => {
+export const verifyEmail = async (data: {
+  code: string;
+}): Promise<VerifyEmailResponse> => {
   console.log("[AUTH] Verifying email with code:", data.code);
 
   try {
     const res = await api.post<VerifyEmailResponse>(
       "/api/auth/verify-email",
-      data, 
+      data,
     );
 
     if (res.data.token) {

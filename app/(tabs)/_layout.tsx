@@ -1,28 +1,36 @@
 import { RootState } from "@/store";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
+import { Image, View } from "react-native";
 import { useSelector } from "react-redux";
 
 export default function TabLayout() {
   const isAuthenticated = useSelector(
     (state: RootState) => state.user.isAuthenticated,
   );
+  const isDark = useSelector((state: RootState) => state.theme.isDark);
+  const userAvatar = useSelector((state: RootState) => state.user.avatar);
 
   if (!isAuthenticated) {
     return <Redirect href="/auth" />;
   }
 
+  const activeColor = isDark ? "#ffffff" : "#000000";
+  const inactiveColor = isDark ? "#737373" : "#a1a1aa";
+  const tabBarBg = isDark ? "#000000" : "#ffffff";
+  const borderColor = isDark ? "#262626" : "#dbdbdb";
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#000000",
-        tabBarInactiveTintColor: "#262626",
+        tabBarActiveTintColor: activeColor,
+        tabBarInactiveTintColor: inactiveColor,
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: "#FFFFFF",
+          backgroundColor: tabBarBg,
           borderTopWidth: 0.5,
-          borderTopColor: "#DBDBDB",
+          borderTopColor: borderColor,
           height: 64,
           paddingBottom: 34,
           paddingTop: 8,
@@ -69,7 +77,7 @@ export default function TabLayout() {
             />
           ),
         }}
-      />{" "}
+      />
       <Tabs.Screen
         name="vibecast"
         options={{
@@ -88,11 +96,43 @@ export default function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={focused ? "person-circle" : "person-circle-outline"}
-              size={26}
-              color={color}
-            />
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                overflow: "hidden",
+                borderWidth: focused ? 2 : 0,
+                borderColor: color,
+              }}
+            >
+              {userAvatar && userAvatar !== "M" ? (
+                <Image
+                  source={{ uri: userAvatar }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons
+                    name={focused ? "person" : "person-outline"}
+                    size={16}
+                    color={color}
+                  />
+                </View>
+              )}
+            </View>
           ),
         }}
       />

@@ -1,12 +1,35 @@
-import { logout as apiLogout, getCurrentUser } from "@/services/api";
+import FriendSkeleton from "@/components/FriendSkeleton";
+import { IOSAlert, showIOSAlert } from "@/components/IOSAlertDialog";
+import {
+  logout as apiLogout,
+  getCurrentUser,
+  updateProfile,
+  uploadAvatar,
+} from "@/services/api";
 import { RootState } from "@/store";
-import { logout as logoutAction } from "@/store/userSlice";
+import { setThemeMode } from "@/store/themeSlice";
+import {
+  logout as logoutAction,
+  updateAvatar as updateAvatarAction,
+  updateUserProfile,
+} from "@/store/userSlice";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { Ban, Info, Radio, Settings, Share2, X } from "lucide-react-native";
+import {
+  Ban,
+  Camera,
+  Info,
+  Monitor,
+  Moon,
+  Radio,
+  Settings,
+  Share2,
+  Sun,
+  X,
+} from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Dimensions,
   Image,
@@ -14,6 +37,7 @@ import {
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -23,15 +47,30 @@ import { useDispatch, useSelector } from "react-redux";
 const { width, height } = Dimensions.get("window");
 const AVATAR_SIZE = 120;
 
+type ThemeMode = "light" | "dark" | "system";
+
 export default function ProfileScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const isDark = useSelector((state: RootState) => state.theme.isDark);
+  const currentThemeMode = useSelector((state: RootState) => state.theme.mode);
+  const userFromRedux = useSelector((state: RootState) => state.user);
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+
+  const [editName, setEditName] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editBirthday, setEditBirthday] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const [alertConfig, setAlertConfig] = useState<any>(null);
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -58,6 +97,10 @@ export default function ProfileScreen() {
       setError(null);
       const data = await getCurrentUser();
       setUser(data);
+      setEditName(data.name || "");
+      setEditBio(data.bio || "");
+      setEditEmail(data.email || "");
+      setEditBirthday(data.birthday || "");
     } catch (err: any) {
       setError("Failed to load profile");
       console.error(err);
@@ -67,18 +110,22 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
+    setAlertConfig(
+      showIOSAlert.destructive(
+        "Logout",
+        "Are you sure you want to logout?",
+        "Logout",
+        async () => {
           await apiLogout();
           dispatch(logoutAction());
           router.replace("/auth");
         },
-      },
-    ]);
+      ),
+    );
+  };
+
+  const handleThemeChange = (mode: ThemeMode) => {
+    dispatch(setThemeMode(mode));
   };
 
   const openAvatarModal = () => {
@@ -95,27 +142,153 @@ export default function ProfileScreen() {
     });
   };
 
+  const openEditModal = () => {
+    setEditModalVisible(true);
+  };
+
+  const closeEditModal = () => {
+    setEditModalVisible(false);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setIsSaving(true);
+      const updatedUser = await updateProfile({
+        name: editName,
+        bio: editBio,
+        email: editEmail || undefined,
+        birthday: editBirthday || undefined,
+      });
+
+      setUser(updatedUser);
+
+      dispatch(
+        updateUserProfile({
+          name: updatedUser.name,
+          email: updatedUser.email,
+        }),
+      );
+
+      setAlertConfig(
+        showIOSAlert.simple("Success", "Profile updated successfully!", () =>
+          closeEditModal(),
+        ),
+      );
+    } catch (err: any) {
+      setAlertConfig(
+        showIOSAlert.simple(
+          "Error",
+          err.response?.data?.message || "Failed to update profile",
+        ),
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      setAlertConfig(
+        showIOSAlert.simple(
+          "Permission Needed",
+          "Please grant camera roll permission to change your avatar.",
+        ),
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      await handleUploadAvatar(result.assets[0]);
+    }
+  };
+
+  const handleUploadAvatar = async (asset: any) => {
+    try {
+      setUploadingAvatar(true);
+      const file = {
+        uri: asset.uri,
+        fileName: asset.fileName || `avatar-${Date.now()}.jpg`,
+        mimeType: asset.mimeType || "image/jpeg",
+      };
+
+      const response = await uploadAvatar(file, (progress) => {
+        console.log("Upload progress:", progress);
+      });
+
+      setUser({ ...user, avatar: response.avatar });
+      dispatch(updateAvatarAction(response.avatar));
+
+      setAlertConfig(
+        showIOSAlert.simple("Success", "Avatar updated successfully!"),
+      );
+    } catch (err: any) {
+      setAlertConfig(
+        showIOSAlert.simple(
+          "Error",
+          err.response?.data?.message || "Failed to upload avatar",
+        ),
+      );
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleShare = () => {
-    Alert.alert("Share", "Share profile feature");
+    setAlertConfig(
+      showIOSAlert.multiOption(
+        "Share Profile",
+        "Choose how you'd like to share your profile",
+        [
+          {
+            text: "Copy Link",
+            onPress: () => console.log("Copy link"),
+            style: "default",
+          },
+          {
+            text: "Share via...",
+            onPress: () => console.log("Share via"),
+            style: "default",
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ],
+      ),
+    );
     closeAvatarModal();
   };
 
   const handleInfo = () => {
-    Alert.alert("Info", "View profile info feature");
+    setAlertConfig(
+      showIOSAlert.simple(
+        "Profile Info",
+        `Name: ${user.name}\nUsername: @${user.login}\nMember since: ${new Date(user.createdAt).toLocaleDateString()}`,
+      ),
+    );
     closeAvatarModal();
   };
 
   const handleBlock = () => {
-    Alert.alert("Block", "Block user feature", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Block",
-        style: "destructive",
-        onPress: () => {
+    setAlertConfig(
+      showIOSAlert.destructive(
+        "Block User",
+        "Are you sure you want to block this user? They won't be able to see your profile or contact you.",
+        "Block",
+        () => {
+          console.log("User blocked");
           closeAvatarModal();
         },
-      },
-    ]);
+      ),
+    );
   };
 
   if (loading) {
@@ -142,6 +315,9 @@ export default function ProfileScreen() {
     );
   }
 
+  const displayAvatar =
+    user.avatar && user.avatar !== "M" && user.avatar !== "";
+
   return (
     <SafeAreaView
       style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
@@ -162,7 +338,10 @@ export default function ProfileScreen() {
             {user.login}
           </Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} className="p-2">
+        <TouchableOpacity
+          onPress={() => setSettingsModalVisible(true)}
+          className="p-2"
+        >
           <Settings size={24} color={isDark ? "#ffffff" : "#000000"} />
         </TouchableOpacity>
       </View>
@@ -171,35 +350,54 @@ export default function ProfileScreen() {
         <View className="px-4 py-6">
           <View className="items-center mb-6">
             <Pressable onLongPress={openAvatarModal} delayLongPress={300}>
-              {user.avatar && user.avatar !== "M" ? (
-                <Image
-                  source={{ uri: user.avatar }}
-                  style={{
-                    width: AVATAR_SIZE,
-                    height: AVATAR_SIZE,
-                    borderRadius: AVATAR_SIZE / 2,
-                    marginBottom: 16,
-                  }}
-                />
-              ) : (
-                <View
-                  style={{
-                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
-                    width: AVATAR_SIZE,
-                    height: AVATAR_SIZE,
-                    borderRadius: AVATAR_SIZE / 2,
-                    marginBottom: 16,
-                  }}
-                  className="items-center justify-center"
-                >
-                  <Text
-                    style={{ color: isDark ? "#a1a1aa" : "#9ca3af" }}
-                    className="text-5xl font-bold"
+              <View>
+                {displayAvatar ? (
+                  <Image
+                    source={{ uri: user.avatar }}
+                    style={{
+                      width: AVATAR_SIZE,
+                      height: AVATAR_SIZE,
+                      borderRadius: AVATAR_SIZE / 2,
+                      marginBottom: 16,
+                    }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                      width: AVATAR_SIZE,
+                      height: AVATAR_SIZE,
+                      borderRadius: AVATAR_SIZE / 2,
+                      marginBottom: 16,
+                    }}
+                    className="items-center justify-center"
                   >
-                    {user.name?.charAt(0)?.toUpperCase() || "U"}
-                  </Text>
-                </View>
-              )}
+                    <Text
+                      style={{ color: isDark ? "#a1a1aa" : "#9ca3af" }}
+                      className="text-5xl font-bold"
+                    >
+                      {user.name?.charAt(0)?.toUpperCase() || "U"}
+                    </Text>
+                  </View>
+                )}
+                {uploadingAvatar && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 16,
+                      backgroundColor: "rgba(0,0,0,0.6)",
+                      borderRadius: AVATAR_SIZE / 2,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <ActivityIndicator size="large" color="#ffffff" />
+                  </View>
+                )}
+              </View>
             </Pressable>
 
             <Text
@@ -226,6 +424,7 @@ export default function ProfileScreen() {
 
           <View className="flex-row gap-2 mb-6">
             <TouchableOpacity
+              onPress={openEditModal}
               style={{
                 backgroundColor: isDark ? "#262626" : "#efefef",
               }}
@@ -240,6 +439,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              onPress={handleShare}
               style={{
                 backgroundColor: isDark ? "#262626" : "#efefef",
               }}
@@ -351,7 +551,7 @@ export default function ProfileScreen() {
                   transform: [{ scale: scaleAnim }],
                 }}
               >
-                {user.avatar && user.avatar !== "M" ? (
+                {displayAvatar ? (
                   <Image
                     source={{ uri: user.avatar }}
                     style={{
@@ -445,45 +645,366 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
-  );
-}
 
-function FriendSkeleton({ isDark }: { isDark: boolean }) {
-  return (
-    <View className="flex-row items-center justify-between py-3">
-      <View className="flex-row items-center flex-1">
-        <View
-          style={{
-            backgroundColor: isDark ? "#262626" : "#e5e7eb",
-          }}
-          className="w-12 h-12 rounded-full mr-3"
-        />
-        <View className="flex-1">
-          <View
-            style={{
-              backgroundColor: isDark ? "#262626" : "#e5e7eb",
-              width: "60%",
-            }}
-            className="h-4 rounded mb-2"
-          />
-          <View
-            style={{
-              backgroundColor: isDark ? "#1f1f1f" : "#f3f4f6",
-              width: "40%",
-            }}
-            className="h-3 rounded"
-          />
-        </View>
-      </View>
-      <TouchableOpacity
-        style={{
-          backgroundColor: "#3b82f6",
-        }}
-        className="px-6 py-1.5 rounded-lg"
+      <Modal
+        visible={settingsModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSettingsModalVisible(false)}
       >
-        <Text className="text-white text-sm font-semibold">Add</Text>
-      </TouchableOpacity>
-    </View>
+        <View style={{ flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
+          <Pressable
+            style={{ flex: 1 }}
+            onPress={() => setSettingsModalVisible(false)}
+          />
+          <View
+            style={{
+              backgroundColor: isDark ? "#000000" : "#ffffff",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingBottom: 40,
+            }}
+          >
+            <View
+              className="px-4 py-4 border-b"
+              style={{ borderBottomColor: isDark ? "#262626" : "#dbdbdb" }}
+            >
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="text-xl font-bold"
+              >
+                Settings
+              </Text>
+            </View>
+
+            <View className="px-4 py-4">
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="text-base font-semibold mb-3"
+              >
+                Theme
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => handleThemeChange("light")}
+                style={{
+                  backgroundColor:
+                    currentThemeMode === "light"
+                      ? "#3b82f6"
+                      : isDark
+                        ? "#262626"
+                        : "#f3f4f6",
+                  marginBottom: 8,
+                }}
+                className="flex-row items-center p-4 rounded-lg"
+              >
+                <Sun
+                  size={20}
+                  color={
+                    currentThemeMode === "light"
+                      ? "#ffffff"
+                      : isDark
+                        ? "#a1a1aa"
+                        : "#737373"
+                  }
+                />
+                <Text
+                  style={{
+                    color:
+                      currentThemeMode === "light"
+                        ? "#ffffff"
+                        : isDark
+                          ? "#ffffff"
+                          : "#000000",
+                  }}
+                  className="ml-3 text-base font-medium"
+                >
+                  Light
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleThemeChange("dark")}
+                style={{
+                  backgroundColor:
+                    currentThemeMode === "dark"
+                      ? "#3b82f6"
+                      : isDark
+                        ? "#262626"
+                        : "#f3f4f6",
+                  marginBottom: 8,
+                }}
+                className="flex-row items-center p-4 rounded-lg"
+              >
+                <Moon
+                  size={20}
+                  color={
+                    currentThemeMode === "dark"
+                      ? "#ffffff"
+                      : isDark
+                        ? "#a1a1aa"
+                        : "#737373"
+                  }
+                />
+                <Text
+                  style={{
+                    color:
+                      currentThemeMode === "dark"
+                        ? "#ffffff"
+                        : isDark
+                          ? "#ffffff"
+                          : "#000000",
+                  }}
+                  className="ml-3 text-base font-medium"
+                >
+                  Dark
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => handleThemeChange("system")}
+                style={{
+                  backgroundColor:
+                    currentThemeMode === "system"
+                      ? "#3b82f6"
+                      : isDark
+                        ? "#262626"
+                        : "#f3f4f6",
+                  marginBottom: 8,
+                }}
+                className="flex-row items-center p-4 rounded-lg"
+              >
+                <Monitor
+                  size={20}
+                  color={
+                    currentThemeMode === "system"
+                      ? "#ffffff"
+                      : isDark
+                        ? "#a1a1aa"
+                        : "#737373"
+                  }
+                />
+                <Text
+                  style={{
+                    color:
+                      currentThemeMode === "system"
+                        ? "#ffffff"
+                        : isDark
+                          ? "#ffffff"
+                          : "#000000",
+                  }}
+                  className="ml-3 text-base font-medium"
+                >
+                  System
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View className="px-4 mt-4">
+              <TouchableOpacity
+                onPress={handleLogout}
+                style={{ backgroundColor: "#ef4444" }}
+                className="p-4 rounded-lg items-center"
+              >
+                <Text className="text-white text-base font-semibold">
+                  Logout
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeEditModal}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)" }}>
+          <Pressable style={{ flex: 1 }} onPress={closeEditModal} />
+          <View
+            style={{
+              backgroundColor: isDark ? "#000000" : "#ffffff",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              maxHeight: height * 0.85,
+            }}
+          >
+            <View
+              className="flex-row items-center justify-between px-4 py-4 border-b"
+              style={{ borderBottomColor: isDark ? "#262626" : "#dbdbdb" }}
+            >
+              <TouchableOpacity onPress={closeEditModal}>
+                <Text className="text-blue-500 text-base">Cancel</Text>
+              </TouchableOpacity>
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="text-lg font-bold"
+              >
+                Edit Profile
+              </Text>
+              <TouchableOpacity onPress={handleSaveProfile} disabled={isSaving}>
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#3b82f6" />
+                ) : (
+                  <Text className="text-blue-500 text-base font-semibold">
+                    Save
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView className="px-4 py-4">
+              <View className="items-center mb-6">
+                <Pressable onPress={handlePickImage}>
+                  <View>
+                    {displayAvatar ? (
+                      <Image
+                        source={{ uri: user.avatar }}
+                        style={{
+                          width: 100,
+                          height: 100,
+                          borderRadius: 50,
+                        }}
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                          width: 100,
+                          height: 100,
+                          borderRadius: 50,
+                        }}
+                        className="items-center justify-center"
+                      >
+                        <Text
+                          style={{ color: isDark ? "#a1a1aa" : "#9ca3af" }}
+                          className="text-4xl font-bold"
+                        >
+                          {user.name?.charAt(0)?.toUpperCase() || "U"}
+                        </Text>
+                      </View>
+                    )}
+                    <View
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        right: 0,
+                        backgroundColor: "#3b82f6",
+                        borderRadius: 15,
+                        padding: 6,
+                      }}
+                    >
+                      <Camera size={16} color="#ffffff" />
+                    </View>
+                  </View>
+                </Pressable>
+                <Text
+                  style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+                  className="text-sm mt-2"
+                >
+                  Tap to change avatar
+                </Text>
+              </View>
+
+              <View className="mb-4">
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="text-sm font-semibold mb-2"
+                >
+                  Name
+                </Text>
+                <TextInput
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="Enter your name"
+                  placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
+                  style={{
+                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                    color: isDark ? "#ffffff" : "#000000",
+                  }}
+                  className="p-3 rounded-lg text-base"
+                />
+              </View>
+
+              <View className="mb-4">
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="text-sm font-semibold mb-2"
+                >
+                  Bio
+                </Text>
+                <TextInput
+                  value={editBio}
+                  onChangeText={setEditBio}
+                  placeholder="Tell us about yourself"
+                  placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
+                  multiline
+                  numberOfLines={4}
+                  style={{
+                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                    color: isDark ? "#ffffff" : "#000000",
+                    textAlignVertical: "top",
+                  }}
+                  className="p-3 rounded-lg text-base"
+                />
+              </View>
+
+              <View className="mb-4">
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="text-sm font-semibold mb-2"
+                >
+                  Email
+                </Text>
+                <TextInput
+                  value={editEmail}
+                  onChangeText={setEditEmail}
+                  placeholder="email@example.com"
+                  placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  style={{
+                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                    color: isDark ? "#ffffff" : "#000000",
+                  }}
+                  className="p-3 rounded-lg text-base"
+                />
+              </View>
+
+              <View className="mb-6">
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="text-sm font-semibold mb-2"
+                >
+                  Birthday
+                </Text>
+                <TextInput
+                  value={editBirthday}
+                  onChangeText={setEditBirthday}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
+                  style={{
+                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                    color: isDark ? "#ffffff" : "#000000",
+                  }}
+                  className="p-3 rounded-lg text-base"
+                />
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      {alertConfig && (
+        <IOSAlert
+          visible={true}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          onDismiss={() => setAlertConfig(null)}
+        />
+      )}
+    </SafeAreaView>
   );
 }
