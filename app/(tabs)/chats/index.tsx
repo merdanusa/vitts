@@ -1,7 +1,7 @@
 import { ChatListItem, getCurrentUser, getMyChats } from "@/services/api";
 import { RootState } from "@/store";
 import { useRouter } from "expo-router";
-import { Camera, CheckCheck, Edit, Search } from "lucide-react-native";
+import { CheckCheck, Search } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -318,21 +318,18 @@ const ChatsScreen = () => {
           }}
           className="px-4 pt-2 pb-3"
         >
-          <View className="flex-row justify-between items-center mb-3">
+          <View className="flex-row gap-2 items-center mb-3">
+            <Image
+              source={require("@/assets/images/app_icon.png")}
+              className="w-10 h-10"
+              alt="logo"
+            />
             <Text
               style={{ color: isDark ? "#ffffff" : "#000000" }}
               className="text-3xl font-bold"
             >
-              Chats
+              Vitts
             </Text>
-            <View className="flex-row gap-4">
-              <TouchableOpacity activeOpacity={0.6}>
-                <Camera size={22} color={isDark ? "#ffffff" : "#000000"} />
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.6} onPress={handleNewChat}>
-                <Edit size={22} color={isDark ? "#ffffff" : "#000000"} />
-              </TouchableOpacity>
-            </View>
           </View>
 
           <View className="relative">
