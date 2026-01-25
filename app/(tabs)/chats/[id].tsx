@@ -52,22 +52,51 @@ const ChatDetailScreen = () => {
     socketService.connect();
 
     const handleNewMessage = (data: any) => {
-      if (data.chatId === id) {
-        const newMessage: Message = {
+      if (data.chatId !== id) return;
+
+      setMessages((prev) => {
+        // Prevent adding the same message twice (by real ID)
+        if (prev.some((msg) => msg.id === data.id)) {
+          console.log(
+            `[DUPLICATE PREVENTED] Message ${data.id} already exists`,
+          );
+          return prev;
+        }
+
+        // Also remove any very similar optimistic message (same content + close time)
+        const filtered = prev.filter((msg) => {
+          if (msg.id.startsWith("temp-") || msg.id.startsWith("optimistic-")) {
+            const timeDiff = Math.abs(
+              new Date(msg.time).getTime() - new Date(data.time).getTime(),
+            );
+            return !(
+              msg.content === (data.content || data.mediaUrl || "") &&
+              timeDiff < 15000 // 15 seconds tolerance
+            );
+          }
+          return true;
+        });
+
+        const incoming: Message = {
           id: data.id,
           senderTitle: data.senderTitle,
           senderId: data.senderId,
           type: data.type,
-          content: data.content || data.mediaUrl,
+          content: data.content || data.mediaUrl || "",
+          mediaUrl: data.mediaUrl,
+          fileName: data.fileName,
+          mimeType: data.mimeType,
+          duration: data.duration,
           time: data.time,
-          isRead: data.isRead,
+          isRead: data.isRead ?? false,
         };
-        setMessages((prev) => [...prev, newMessage]);
-        setTimeout(
-          () => flatListRef.current?.scrollToEnd({ animated: true }),
-          100,
-        );
-      }
+
+        return [...filtered, incoming];
+      });
+
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 80);
     };
 
     socketService.on("newMessage", handleNewMessage);

@@ -1,6 +1,7 @@
 import { Mic, Paperclip, Send, Smile } from "lucide-react-native";
 import React from "react";
 import { Platform, TextInput, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ChatInputProps {
   isDark: boolean;
@@ -27,15 +28,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onStartRecording,
   onStopRecording,
 }) => {
+  const insets = useSafeAreaInsets();
+
   return (
     <View
       style={{
         borderTopWidth: 0.5,
         borderTopColor: isDark ? "#1a1a1a" : "#f3f4f6",
         backgroundColor: isDark ? "#000000" : "#ffffff",
-        paddingBottom: Platform.OS === "ios" ? 0 : 8,
+        paddingBottom: insets.bottom + 8,
+        paddingTop: 8,
       }}
-      className="px-4 py-2"
+      className="px-4"
     >
       <View className="flex-row items-center">
         <TouchableOpacity
@@ -66,7 +70,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             flex: 1,
             borderRadius: 20,
             paddingHorizontal: 12,
-            paddingVertical: Platform.OS === "ios" ? 8 : 6,
+            paddingVertical: Platform.OS === "ios" ? 10 : 8,
             marginRight: 8,
           }}
           className="flex-row items-center"
@@ -77,6 +81,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               flex: 1,
               fontSize: 16,
               maxHeight: 100,
+              paddingTop: 0,
+              paddingBottom: 0,
             }}
             placeholder="Message"
             placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
