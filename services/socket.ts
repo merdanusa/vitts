@@ -1,8 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
+const SOCKET_URL = (
+  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000"
+).replace(/\/$/, "");
 
 class SocketService {
   private socket: Socket | null = null;
@@ -21,12 +22,15 @@ class SocketService {
         return;
       }
 
+      console.log("[SOCKET] Connecting to:", SOCKET_URL);
+
       this.socket = io(SOCKET_URL, {
         auth: { token },
-        transports: ["websocket"],
+        transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionDelay: 1000,
         reconnectionAttempts: 5,
+        timeout: 10000,
       });
 
       this.socket.on("connect", () => {
@@ -39,6 +43,18 @@ class SocketService {
 
       this.socket.on("connect_error", (error) => {
         console.error("[SOCKET] Connection error:", error.message);
+        if (
+          error.message.includes("Authentication") ||
+          error.message.includes("Invalid token")
+        ) {
+          console.error(
+            "[SOCKET] Token might be expired or invalid. Try logging in again.",
+          );
+        }
+      });
+
+      this.socket.on("error", (error) => {
+        console.error("[SOCKET] Socket error:", error);
       });
 
       this.setupInternalListeners();

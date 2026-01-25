@@ -1,6 +1,6 @@
 import { ChatListItem, getCurrentUser, getMyChats } from "@/services/api";
 import { RootState } from "@/store";
-import { useNavigation } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import { Camera, CheckCheck, Edit, Search } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -27,7 +27,7 @@ const getInitials = (name: string): string => {
 
 const ChatsScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
-  const navigation = useNavigation();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [chats, setChats] = useState<ChatListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,14 +152,14 @@ const ChatsScreen = () => {
 
   const handleChatPress = useCallback(
     (chatId: string) => {
-      navigation.navigate("ChatDetail" as never, { chatId } as never);
+      router.push(`/chats/${chatId}`);
     },
-    [navigation],
+    [router],
   );
 
   const handleNewChat = useCallback(() => {
-    navigation.navigate("NewChat" as never);
-  }, [navigation]);
+    router.push("/discover");
+  }, [router]);
 
   const renderChatItem = useCallback(
     ({ item, index }: { item: ChatListItem; index: number }) => {

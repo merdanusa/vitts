@@ -1,14 +1,27 @@
 import { getChatById, getCurrentUser, Message } from "@/services/api";
 import { socketService } from "@/services/socket";
 import { RootState } from "@/store";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronLeft, Mic, Paperclip, Send, Smile } from "lucide-react-native";
+import {
+  ChevronLeft,
+  Image as ImageIcon,
+  Mic,
+  Paperclip,
+  Send,
+  Smile,
+  X,
+} from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Text,
   TextInput,
@@ -26,6 +39,8 @@ const getInitials = (name: string): string => {
   return name.slice(0, 2).toUpperCase();
 };
 
+const EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍", "👎", "🔥", "🎉", "💯"];
+
 const ChatDetailScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
   const router = useRouter();
@@ -36,7 +51,12 @@ const ChatDetailScreen = () => {
   const [loading, setLoading] = useState(true);
   const [chatData, setChatData] = useState<any>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+  const recordingAnimation = useRef(new Animated.Value(1)).current;
 
   const loadChat = async () => {
     try {
@@ -78,10 +98,47 @@ const ChatDetailScreen = () => {
 
     socketService.on("newMessage", handleNewMessage);
 
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      },
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setKeyboardHeight(0);
+      },
+    );
+
     return () => {
       socketService.off("newMessage", handleNewMessage);
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
     };
   }, [id]);
+
+  useEffect(() => {
+    if (isRecording) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(recordingAnimation, {
+            toValue: 1.3,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(recordingAnimation, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    } else {
+      recordingAnimation.setValue(1);
+    }
+  }, [isRecording]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -90,6 +147,60 @@ const ChatDetailScreen = () => {
     setInputText("");
 
     socketService.sendMessage(id, messageContent, "text");
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setInputText((prev) => prev + emoji);
+    setShowEmojiPicker(false);
+  };
+
+  const handleImagePick = async () => {
+    setShowAttachMenu(false);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      console.log("Image selected:", result.assets[0].uri);
+    }
+  };
+
+  const handleCameraPick = async () => {
+    setShowAttachMenu(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      console.log("Photo taken:", result.assets[0].uri);
+    }
+  };
+
+  const handleDocumentPick = async () => {
+    setShowAttachMenu(false);
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "*/*",
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      console.log("Document selected:", result.assets[0].name);
+    }
+  };
+
+  const startRecording = () => {
+    setIsRecording(true);
+    console.log("Recording started");
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    console.log("Recording stopped");
   };
 
   const formatTime = useCallback((timeString: string) => {
@@ -186,11 +297,12 @@ const ChatDetailScreen = () => {
     <SafeAreaView
       style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
       className="flex-1"
+      edges={["top"]}
     >
       <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
         <View
           style={{
@@ -285,16 +397,69 @@ const ChatDetailScreen = () => {
           windowSize={15}
         />
 
+        {isRecording && (
+          <View
+            style={{
+              backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <Animated.View
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: "#ef4444",
+                    marginRight: 12,
+                    transform: [{ scale: recordingAnimation }],
+                  }}
+                />
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="text-base font-medium"
+                >
+                  Recording...
+                </Text>
+              </View>
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={stopRecording}
+                style={{
+                  backgroundColor: isDark ? "#262626" : "#e5e7eb",
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                }}
+              >
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="font-medium"
+                >
+                  Send
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         <View
           style={{
             borderTopWidth: 0.5,
             borderTopColor: isDark ? "#1a1a1a" : "#f3f4f6",
             backgroundColor: isDark ? "#000000" : "#ffffff",
+            paddingBottom: Platform.OS === "ios" ? 0 : 8,
           }}
           className="px-4 py-2"
         >
           <View className="flex-row items-center">
-            <TouchableOpacity activeOpacity={0.6} className="mr-3">
+            <TouchableOpacity
+              activeOpacity={0.6}
+              onPress={() => setShowAttachMenu(true)}
+              className="mr-3"
+            >
               <Paperclip size={24} color={isDark ? "#ffffff" : "#007AFF"} />
             </TouchableOpacity>
 
@@ -325,9 +490,12 @@ const ChatDetailScreen = () => {
                 multiline
                 autoCapitalize="sentences"
                 autoCorrect={true}
-                returnKeyType="default"
               />
-              <TouchableOpacity activeOpacity={0.6} className="ml-2">
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => setShowEmojiPicker(true)}
+                className="ml-2"
+              >
                 <Smile size={22} color={isDark ? "#737373" : "#a1a1aa"} />
               </TouchableOpacity>
             </View>
@@ -337,13 +505,207 @@ const ChatDetailScreen = () => {
                 <Send size={24} color="#007AFF" />
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity activeOpacity={0.6}>
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPressIn={startRecording}
+                onPressOut={stopRecording}
+              >
                 <Mic size={24} color={isDark ? "#ffffff" : "#007AFF"} />
               </TouchableOpacity>
             )}
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={showEmojiPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEmojiPicker(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowEmojiPicker(false)}
+          className="flex-1 justify-end"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <View
+            style={{
+              backgroundColor: isDark ? "#000000" : "#ffffff",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingBottom: Platform.OS === "ios" ? 34 : 20,
+            }}
+          >
+            <View className="flex-row items-center justify-between px-4 py-4">
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="text-lg font-semibold"
+              >
+                Emoji
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => setShowEmojiPicker(false)}
+              >
+                <X size={24} color={isDark ? "#ffffff" : "#000000"} />
+              </TouchableOpacity>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                paddingHorizontal: 16,
+                paddingBottom: 16,
+              }}
+            >
+              {EMOJIS.map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  activeOpacity={0.6}
+                  onPress={() => handleEmojiSelect(emoji)}
+                  style={{
+                    width: "20%",
+                    aspectRatio: 1,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 32 }}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal
+        visible={showAttachMenu}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAttachMenu(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setShowAttachMenu(false)}
+          className="flex-1 justify-end"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <View
+            style={{
+              backgroundColor: isDark ? "#000000" : "#ffffff",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingBottom: Platform.OS === "ios" ? 34 : 20,
+            }}
+          >
+            <View className="flex-row items-center justify-between px-4 py-4">
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="text-lg font-semibold"
+              >
+                Send Attachment
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={() => setShowAttachMenu(false)}
+              >
+                <X size={24} color={isDark ? "#ffffff" : "#000000"} />
+              </TouchableOpacity>
+            </View>
+            <View className="px-4 pb-4">
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleImagePick}
+                style={{
+                  backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 12,
+                }}
+                className="flex-row items-center"
+              >
+                <View
+                  style={{
+                    backgroundColor: "#007AFF",
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                  }}
+                  className="items-center justify-center mr-3"
+                >
+                  <ImageIcon size={20} color="#ffffff" />
+                </View>
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="text-base font-medium"
+                >
+                  Photo from Gallery
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleCameraPick}
+                style={{
+                  backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 12,
+                }}
+                className="flex-row items-center"
+              >
+                <View
+                  style={{
+                    backgroundColor: "#10b981",
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                  }}
+                  className="items-center justify-center mr-3"
+                >
+                  <ImageIcon size={20} color="#ffffff" />
+                </View>
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="text-base font-medium"
+                >
+                  Take Photo
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleDocumentPick}
+                style={{
+                  backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
+                  borderRadius: 12,
+                  padding: 16,
+                }}
+                className="flex-row items-center"
+              >
+                <View
+                  style={{
+                    backgroundColor: "#f59e0b",
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                  }}
+                  className="items-center justify-center mr-3"
+                >
+                  <Paperclip size={20} color="#ffffff" />
+                </View>
+                <Text
+                  style={{ color: isDark ? "#ffffff" : "#000000" }}
+                  className="text-base font-medium"
+                >
+                  Document
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
