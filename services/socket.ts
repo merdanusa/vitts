@@ -119,22 +119,22 @@ class SocketService {
     this.listeners.get(event)?.forEach((callback) => callback(data));
   }
 
-  sendMessage(
-    chatId: string,
-    content: string,
-    type: string = "text",
-    duration?: number,
-  ) {
+  sendMessage(params: {
+    chatId: string;
+    content: string;
+    type?: string;
+    duration?: number;
+  }) {
     if (!this.socket?.connected) {
       console.error("[SOCKET] Not connected");
       return;
     }
 
     this.socket.emit("sendMessage", {
-      chatId,
-      content,
-      type,
-      duration,
+      chatId: params.chatId,
+      content: params.content,
+      type: params.type || "text",
+      duration: params.duration,
     });
   }
 

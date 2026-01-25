@@ -1,3 +1,4 @@
+import { NetworkMonitor } from "@/components/NetworkMonitor";
 import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 import "@/global.css";
 import { useAppTheme } from "@/hooks/useAppTheme.ts";
@@ -5,7 +6,6 @@ import { bootstrapAuth } from "@/services/authBootstrap";
 import { store } from "@/store";
 import { useAppDispatch } from "@/store/hooks";
 import { updateSystemTheme } from "@/store/themeSlice";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -14,8 +14,6 @@ import { Appearance } from "react-native";
 import { Provider } from "react-redux";
 
 SplashScreen.preventAutoHideAsync();
-
-const queryClient = new QueryClient();
 
 function RootLayoutContent() {
   const [appIsReady, setAppIsReady] = useState(false);
@@ -27,7 +25,6 @@ function RootLayoutContent() {
     async function prepare() {
       try {
         const isLoggedIn = await bootstrapAuth(dispatch);
-
         await new Promise((resolve) => setTimeout(resolve, 600));
       } catch (e) {
         console.warn(e);
@@ -58,14 +55,13 @@ function RootLayoutContent() {
 
   return (
     <GluestackUIProvider mode={isDark ? "dark" : "light"}>
-      <QueryClientProvider client={queryClient}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-        </Stack>
-        <StatusBar style={isDark ? "light" : "dark"} />
-      </QueryClientProvider>
+      <NetworkMonitor />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+      </Stack>
+      <StatusBar style={isDark ? "light" : "dark"} />
     </GluestackUIProvider>
   );
 }

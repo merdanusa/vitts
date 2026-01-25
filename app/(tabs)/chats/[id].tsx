@@ -1,11 +1,14 @@
+import EMOJIS from "@/constants/emoji";
 import { getChatById, getCurrentUser, Message } from "@/services/api";
 import { socketService } from "@/services/socket";
 import { RootState } from "@/store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ChevronLeft,
+  File,
   Image as ImageIcon,
   Mic,
   Paperclip,
@@ -16,6 +19,7 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Image,
@@ -31,6 +35,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
+
 const getInitials = (name: string): string => {
   const parts = name.trim().split(" ");
   if (parts.length >= 2) {
@@ -38,8 +45,6 @@ const getInitials = (name: string): string => {
   }
   return name.slice(0, 2).toUpperCase();
 };
-
-const EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍", "👎", "🔥", "🎉", "💯"];
 
 const ChatDetailScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
@@ -55,6 +60,9 @@ const ChatDetailScreen = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const recordingAnimation = useRef(new Animated.Value(1)).current;
 
@@ -69,6 +77,7 @@ const ChatDetailScreen = () => {
       setCurrentUserId(userData.id);
     } catch (error) {
       console.error("Failed to load chat:", error);
+      Alert.alert("Error", "Failed to load chat");
     } finally {
       setLoading(false);
     }
@@ -85,7 +94,7 @@ const ChatDetailScreen = () => {
           senderTitle: data.senderTitle,
           senderId: data.senderId,
           type: data.type,
-          content: data.content,
+          content: data.content || data.mediaUrl,
           time: data.time,
           isRead: data.isRead,
         };
@@ -97,6 +106,24 @@ const ChatDetailScreen = () => {
     };
 
     socketService.on("newMessage", handleNewMessage);
+
+    const handleTyping = (data: any) => {
+      if (data.chatId === id && data.fromUserId !== currentUserId) {
+        setIsTyping(true);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
+      }
+    };
+
+    const handleStopTyping = (data: any) => {
+      if (data.chatId === id) {
+        setIsTyping(false);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      }
+    };
+
+    socketService.on("userTyping", handleTyping);
+    socketService.on("userStopTyping", handleStopTyping);
 
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
@@ -114,10 +141,13 @@ const ChatDetailScreen = () => {
 
     return () => {
       socketService.off("newMessage", handleNewMessage);
+      socketService.off("userTyping", handleTyping);
+      socketService.off("userStopTyping", handleStopTyping);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       keyboardWillShow.remove();
       keyboardWillHide.remove();
     };
-  }, [id]);
+  }, [id, currentUserId]);
 
   useEffect(() => {
     if (isRecording) {
@@ -139,6 +169,121 @@ const ChatDetailScreen = () => {
       recordingAnimation.setValue(1);
     }
   }, [isRecording]);
+
+  const sendImage = async (uri: string) => {
+    try {
+      setUploading(true);
+
+      const filename = uri.split("/").pop() || `image-${Date.now()}.jpg`;
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : "image/jpeg";
+
+      const formData = new FormData();
+      formData.append("file", {
+        uri,
+        name: filename,
+        type,
+      } as any);
+      formData.append("type", "image");
+
+      const token = await AsyncStorage.getItem("token");
+
+      const response = await fetch(`${API_BASE_URL}/api/chats/${id}/message`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to upload image");
+      }
+
+      const result = await response.json();
+      console.log("Image uploaded successfully:", result);
+
+      const newMessage: Message = {
+        id: result.id,
+        senderTitle: result.senderTitle,
+        senderId: result.senderId,
+        type: result.type,
+        content: result.content || result.mediaUrl,
+        time: result.time,
+        isRead: result.isRead,
+      };
+
+      setMessages((prev) => [...prev, newMessage]);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error: any) {
+      console.error("Error uploading image:", error);
+      Alert.alert("Upload Failed", error.message || "Failed to upload image");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const sendDocument = async (
+    uri: string,
+    fileName: string,
+    mimeType: string,
+  ) => {
+    try {
+      setUploading(true);
+
+      const formData = new FormData();
+      formData.append("file", {
+        uri,
+        name: fileName,
+        type: mimeType,
+      } as any);
+      formData.append("type", "document");
+
+      const token = await AsyncStorage.getItem("token");
+
+      const response = await fetch(`${API_BASE_URL}/api/chats/${id}/message`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to upload document");
+      }
+
+      const result = await response.json();
+      console.log("Document uploaded successfully:", result);
+
+      const newMessage: Message = {
+        id: result.id,
+        senderTitle: result.senderTitle,
+        senderId: result.senderId,
+        type: result.type,
+        content: result.fileName || fileName,
+        time: result.time,
+        isRead: result.isRead,
+      };
+
+      setMessages((prev) => [...prev, newMessage]);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (error: any) {
+      console.error("Error uploading document:", error);
+      Alert.alert(
+        "Upload Failed",
+        error.message || "Failed to upload document",
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -163,14 +308,20 @@ const ChatDetailScreen = () => {
     });
 
     if (!result.canceled && result.assets[0]) {
-      console.log("Image selected:", result.assets[0].uri);
+      await sendImage(result.assets[0].uri);
     }
   };
 
   const handleCameraPick = async () => {
     setShowAttachMenu(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") return;
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Denied",
+        "Camera permission is required to take photos",
+      );
+      return;
+    }
 
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
@@ -178,7 +329,7 @@ const ChatDetailScreen = () => {
     });
 
     if (!result.canceled && result.assets[0]) {
-      console.log("Photo taken:", result.assets[0].uri);
+      await sendImage(result.assets[0].uri);
     }
   };
 
@@ -186,10 +337,16 @@ const ChatDetailScreen = () => {
     setShowAttachMenu(false);
     const result = await DocumentPicker.getDocumentAsync({
       type: "*/*",
+      copyToCacheDirectory: true,
     });
 
     if (!result.canceled && result.assets[0]) {
-      console.log("Document selected:", result.assets[0].name);
+      const asset = result.assets[0];
+      await sendDocument(
+        asset.uri,
+        asset.name,
+        asset.mimeType || "application/octet-stream",
+      );
     }
   };
 
@@ -227,26 +384,117 @@ const ChatDetailScreen = () => {
         >
           <View
             style={{
-              backgroundColor: isMyMessage
-                ? "#007AFF"
-                : isDark
-                  ? "#262626"
-                  : "#f3f4f6",
+              backgroundColor:
+                item.type === "image"
+                  ? "transparent"
+                  : isMyMessage
+                    ? "#007AFF"
+                    : isDark
+                      ? "#262626"
+                      : "#f3f4f6",
               maxWidth: "80%",
               borderRadius: 18,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
+              paddingHorizontal: item.type === "image" ? 0 : 12,
+              paddingVertical: item.type === "image" ? 0 : 8,
+              overflow: "hidden",
             }}
           >
-            <Text
-              style={{
-                color: isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000",
-                fontSize: 16,
-                lineHeight: 20,
-              }}
-            >
-              {item.content}
-            </Text>
+            {item.type === "image" ? (
+              <Image
+                source={{ uri: item.content }}
+                style={{
+                  width: 200,
+                  height: 200,
+                  borderRadius: 18,
+                }}
+                resizeMode="cover"
+              />
+            ) : item.type === "document" ? (
+              <View className="flex-row items-center py-2">
+                <View
+                  style={{
+                    backgroundColor: isMyMessage
+                      ? "#ffffff20"
+                      : isDark
+                        ? "#ffffff20"
+                        : "#00000020",
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                  }}
+                  className="items-center justify-center mr-2"
+                >
+                  <File
+                    size={16}
+                    color={
+                      isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000"
+                    }
+                  />
+                </View>
+                <Text
+                  style={{
+                    color: isMyMessage
+                      ? "#ffffff"
+                      : isDark
+                        ? "#ffffff"
+                        : "#000000",
+                    fontSize: 14,
+                  }}
+                  numberOfLines={1}
+                >
+                  {item.content}
+                </Text>
+              </View>
+            ) : item.type === "voice" || item.type === "audio" ? (
+              <View className="flex-row items-center py-2">
+                <View
+                  style={{
+                    backgroundColor: isMyMessage
+                      ? "#ffffff20"
+                      : isDark
+                        ? "#ffffff20"
+                        : "#00000020",
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                  }}
+                  className="items-center justify-center mr-2"
+                >
+                  <Mic
+                    size={16}
+                    color={
+                      isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000"
+                    }
+                  />
+                </View>
+                <Text
+                  style={{
+                    color: isMyMessage
+                      ? "#ffffff"
+                      : isDark
+                        ? "#ffffff"
+                        : "#000000",
+                    fontSize: 14,
+                  }}
+                >
+                  Voice message
+                </Text>
+              </View>
+            ) : (
+              <Text
+                style={{
+                  color: isMyMessage
+                    ? "#ffffff"
+                    : isDark
+                      ? "#ffffff"
+                      : "#000000",
+                  fontSize: 16,
+                  lineHeight: 20,
+                }}
+              >
+                {item.content}
+              </Text>
+            )}
           </View>
           {showTime && (
             <Text
@@ -304,6 +552,7 @@ const ChatDetailScreen = () => {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
+        {/* Header */}
         <View
           style={{
             borderBottomWidth: 0.5,
@@ -374,12 +623,17 @@ const ChatDetailScreen = () => {
                 style={{ color: isDark ? "#737373" : "#a1a1aa" }}
                 className="text-xs"
               >
-                {participant?.isOnline ? "online" : "offline"}
+                {isTyping
+                  ? "typing..."
+                  : participant?.isOnline
+                    ? "online"
+                    : "offline"}
               </Text>
             </View>
           </View>
         </View>
 
+        {/* Messages List */}
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -397,6 +651,31 @@ const ChatDetailScreen = () => {
           windowSize={15}
         />
 
+        {/* Upload Indicator */}
+        {uploading && (
+          <View
+            style={{
+              backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+              paddingVertical: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <View className="flex-row items-center">
+              <ActivityIndicator
+                size="small"
+                color={isDark ? "#ffffff" : "#007AFF"}
+              />
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="ml-3 text-base"
+              >
+                Uploading...
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Recording Indicator */}
         {isRecording && (
           <View
             style={{
@@ -445,6 +724,7 @@ const ChatDetailScreen = () => {
           </View>
         )}
 
+        {/* Input Area */}
         <View
           style={{
             borderTopWidth: 0.5,
@@ -459,8 +739,20 @@ const ChatDetailScreen = () => {
               activeOpacity={0.6}
               onPress={() => setShowAttachMenu(true)}
               className="mr-3"
+              disabled={uploading}
             >
-              <Paperclip size={24} color={isDark ? "#ffffff" : "#007AFF"} />
+              <Paperclip
+                size={24}
+                color={
+                  uploading
+                    ? isDark
+                      ? "#404040"
+                      : "#d1d5db"
+                    : isDark
+                      ? "#ffffff"
+                      : "#007AFF"
+                }
+              />
             </TouchableOpacity>
 
             <View
@@ -486,37 +778,74 @@ const ChatDetailScreen = () => {
                 placeholder="Message"
                 placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
                 value={inputText}
-                onChangeText={setInputText}
+                onChangeText={(text) => {
+                  setInputText(text);
+                  if (text.trim() && participant?.id) {
+                    socketService.typing(id, participant.id);
+                  } else if (participant?.id) {
+                    socketService.stopTyping(id, participant.id);
+                  }
+                }}
                 multiline
                 autoCapitalize="sentences"
                 autoCorrect={true}
+                editable={!uploading}
               />
               <TouchableOpacity
                 activeOpacity={0.6}
                 onPress={() => setShowEmojiPicker(true)}
                 className="ml-2"
+                disabled={uploading}
               >
-                <Smile size={22} color={isDark ? "#737373" : "#a1a1aa"} />
+                <Smile
+                  size={22}
+                  color={
+                    uploading
+                      ? isDark
+                        ? "#404040"
+                        : "#d1d5db"
+                      : isDark
+                        ? "#737373"
+                        : "#a1a1aa"
+                  }
+                />
               </TouchableOpacity>
             </View>
 
             {inputText.trim() ? (
-              <TouchableOpacity activeOpacity={0.6} onPress={handleSend}>
-                <Send size={24} color="#007AFF" />
+              <TouchableOpacity
+                activeOpacity={0.6}
+                onPress={handleSend}
+                disabled={uploading}
+              >
+                <Send size={24} color={uploading ? "#a1a1aa" : "#007AFF"} />
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 activeOpacity={0.6}
                 onPressIn={startRecording}
                 onPressOut={stopRecording}
+                disabled={uploading}
               >
-                <Mic size={24} color={isDark ? "#ffffff" : "#007AFF"} />
+                <Mic
+                  size={24}
+                  color={
+                    uploading
+                      ? isDark
+                        ? "#404040"
+                        : "#d1d5db"
+                      : isDark
+                        ? "#ffffff"
+                        : "#007AFF"
+                  }
+                />
               </TouchableOpacity>
             )}
           </View>
         </View>
       </KeyboardAvoidingView>
 
+      {/* Emoji Picker Modal */}
       <Modal
         visible={showEmojiPicker}
         transparent
@@ -579,6 +908,7 @@ const ChatDetailScreen = () => {
         </TouchableOpacity>
       </Modal>
 
+      {/* Attachment Menu Modal */}
       <Modal
         visible={showAttachMenu}
         transparent

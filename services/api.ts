@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import NetInfo from "@react-native-community/netinfo";
 import axios, {
+  AxiosError,
   AxiosInstance,
   AxiosProgressEvent,
   InternalAxiosRequestConfig,
@@ -8,17 +10,66 @@ import axios, {
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
 
+// ============================================================================
+// AUTO-RECONNECT CONFIGURATION
+// ============================================================================
+
+interface RetryConfig {
+  maxRetries: number;
+  retryDelay: number;
+  retryableStatuses: number[];
+  shouldRetry: (error: AxiosError) => boolean;
+}
+
+const RETRY_CONFIG: RetryConfig = {
+  maxRetries: 3,
+  retryDelay: 1000, // Base delay in ms
+  retryableStatuses: [408, 429, 500, 502, 503, 504],
+  shouldRetry: (error: AxiosError) => {
+    // Retry on network errors
+    if (!error.response) return true;
+    // Retry on specific status codes
+    if (RETRY_CONFIG.retryableStatuses.includes(error.response.status)) {
+      return true;
+    }
+    return false;
+  },
+};
+
+// Track retry attempts
+const retryCountMap = new Map<string, number>();
+
+// Exponential backoff delay
+const getRetryDelay = (retryCount: number): number => {
+  return Math.min(RETRY_CONFIG.retryDelay * Math.pow(2, retryCount), 10000);
+};
+
+// ============================================================================
+// AXIOS INSTANCE
+// ============================================================================
+
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 15000,
+  timeout: 30000,
 });
+
+// ============================================================================
+// REQUEST INTERCEPTOR (with network check)
+// ============================================================================
 
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     try {
+      // Check network connectivity before making request
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected) {
+        console.warn("[API] No internet connection");
+        return Promise.reject(new Error("No internet connection"));
+      }
+
       const token = await AsyncStorage.getItem("token");
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
@@ -38,18 +89,81 @@ api.interceptors.request.use(
   },
 );
 
+// ============================================================================
+// RESPONSE INTERCEPTOR (with auto-retry)
+// ============================================================================
+
 api.interceptors.response.use(
   (response) => {
+    // Clear retry count on success
+    const requestKey = `${response.config.method}-${response.config.url}`;
+    retryCountMap.delete(requestKey);
+
     console.log(
       `[API RESPONSE] ${response.config.method?.toUpperCase()} ${response.config.url} → ${response.status}`,
     );
     return response;
   },
-  async (error) => {
+  async (error: AxiosError) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+      _retryCount?: number;
+    };
+
+    // Handle 401 Unauthorized
     if (error.response?.status === 401) {
       console.warn("401 Unauthorized → removing token");
       await AsyncStorage.removeItem("token");
+      return Promise.reject(error);
     }
+
+    // Check if we should retry
+    if (!originalRequest || originalRequest._retry) {
+      console.error(
+        `[API ERROR] ${error.response?.status || "unknown"}`,
+        error.response?.data || error.message,
+      );
+      return Promise.reject(error);
+    }
+
+    // Get retry count for this request
+    const requestKey = `${originalRequest.method}-${originalRequest.url}`;
+    const retryCount = retryCountMap.get(requestKey) || 0;
+
+    // Check if we should retry this error
+    if (
+      RETRY_CONFIG.shouldRetry(error) &&
+      retryCount < RETRY_CONFIG.maxRetries
+    ) {
+      // Increment retry count
+      retryCountMap.set(requestKey, retryCount + 1);
+      originalRequest._retry = true;
+      originalRequest._retryCount = retryCount + 1;
+
+      // Calculate delay with exponential backoff
+      const delay = getRetryDelay(retryCount);
+
+      console.warn(
+        `[API RETRY] Attempt ${retryCount + 1}/${RETRY_CONFIG.maxRetries} after ${delay}ms - ${originalRequest.method?.toUpperCase()} ${originalRequest.url}`,
+      );
+
+      // Wait before retrying
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      // Check network again before retry
+      const netInfo = await NetInfo.fetch();
+      if (!netInfo.isConnected) {
+        console.warn("[API RETRY] No internet connection, waiting...");
+        // Wait a bit longer if no connection
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+
+      // Retry the request
+      return api(originalRequest);
+    }
+
+    // Max retries reached or non-retryable error
+    retryCountMap.delete(requestKey);
     console.error(
       `[API ERROR] ${error.response?.status || "unknown"}`,
       error.response?.data || error.message,
@@ -57,6 +171,54 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+// ============================================================================
+// NETWORK MONITORING
+// ============================================================================
+
+let isOnline = true;
+let reconnectCallbacks: (() => void)[] = [];
+
+// Subscribe to network changes
+NetInfo.addEventListener((state) => {
+  const wasOffline = !isOnline;
+  isOnline = state.isConnected ?? true;
+
+  if (wasOffline && isOnline) {
+    console.log("[NETWORK] Connection restored - triggering callbacks");
+    // Clear all retry counts
+    retryCountMap.clear();
+    // Trigger all registered callbacks
+    reconnectCallbacks.forEach((callback) => {
+      try {
+        callback();
+      } catch (err) {
+        console.error("[NETWORK] Callback error:", err);
+      }
+    });
+  } else if (!isOnline) {
+    console.warn("[NETWORK] Connection lost");
+  }
+});
+
+// Register callback to be called when network reconnects
+export const onReconnect = (callback: () => void): (() => void) => {
+  reconnectCallbacks.push(callback);
+  // Return unsubscribe function
+  return () => {
+    reconnectCallbacks = reconnectCallbacks.filter((cb) => cb !== callback);
+  };
+};
+
+// Check current network status
+export const checkNetworkStatus = async (): Promise<boolean> => {
+  const netInfo = await NetInfo.fetch();
+  return netInfo.isConnected ?? false;
+};
+
+// ============================================================================
+// AUTH API
+// ============================================================================
 
 export interface RegisterPayload {
   name: string;
@@ -109,6 +271,10 @@ export const logout = async () => {
   console.log("[AUTH] Logging out – clearing token");
   await AsyncStorage.removeItem("token");
 };
+
+// ============================================================================
+// USER API
+// ============================================================================
 
 export interface UserProfile {
   id: string;
@@ -201,6 +367,10 @@ export const saveFcmToken = async (
   return res.data;
 };
 
+// ============================================================================
+// CHAT API
+// ============================================================================
+
 export interface Participant {
   id: string;
   name: string;
@@ -213,7 +383,7 @@ export interface LastMessage {
   id: string;
   content: string;
   time: string;
-  type: "text" | "image" | "voice" | string;
+  type: "text" | "image" | "voice" | "document" | string;
   isRead: boolean;
   senderId: string | null;
 }
@@ -235,8 +405,15 @@ export interface Message {
   senderId: string;
   type: string;
   content: string;
+  mediaUrl?: string;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
+  duration?: number;
   time: string;
   isRead: boolean;
+  reactions?: Record<string, string[]>;
+  replyTo?: string;
 }
 
 export interface FullChat {
@@ -253,7 +430,8 @@ export const getChatById = async (chatId: string): Promise<FullChat> => {
 
 export interface SendMessagePayload {
   content: string;
-  type?: "text" | "image" | "voice" | string;
+  type?: "text" | "image" | "voice" | "document" | string;
+  duration?: number;
 }
 
 export const sendMessageHttp = async (
@@ -262,6 +440,38 @@ export const sendMessageHttp = async (
 ): Promise<Message> => {
   console.log("[MESSAGE] Sending via HTTP:", data.type || "text");
   const res = await api.post<Message>(`/api/chats/${chatId}/message`, data);
+  return res.data;
+};
+
+export const sendFileMessage = async (
+  chatId: string,
+  fileUri: string,
+  fileName: string,
+  mimeType: string,
+  type: "image" | "document" | "voice" | "video" = "document",
+  onUploadProgress?: (progressEvent: AxiosProgressEvent) => void,
+): Promise<Message> => {
+  console.log("[MESSAGE] Uploading file:", fileName, type);
+
+  const formData = new FormData();
+  formData.append("file", {
+    uri: fileUri,
+    name: fileName,
+    type: mimeType,
+  } as any);
+  formData.append("type", type);
+
+  const res = await api.post<Message>(
+    `/api/chats/${chatId}/message`,
+    formData,
+    {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress,
+      timeout: 60000,
+    },
+  );
+
+  console.log("[MESSAGE] File uploaded successfully");
   return res.data;
 };
 
@@ -297,6 +507,10 @@ export const deleteChat = async (
   const res = await api.delete<{ message: string }>(`/api/chats/${chatId}`);
   return res.data;
 };
+
+// ============================================================================
+// PASSWORD RESET API
+// ============================================================================
 
 export interface ForgotPasswordPayload {
   email: string;
