@@ -1,87 +1,51 @@
-import EMOJIS from "@/constants/emoji";
-import { getChatById, getCurrentUser, Message } from "@/services/api";
-import { socketService } from "@/services/socket";
-import { RootState } from "@/store";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-  ChevronLeft,
-  File,
-  Image as ImageIcon,
-  Mic,
-  Paperclip,
-  Send,
-  Smile,
-  X,
-} from "lucide-react-native";
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  FlatList,
-  Image,
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, FlatList, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
+import { Message } from "@/services/api";
+import { socketService } from "@/services/socket";
+import { RootState } from "@/store";
 
-const getInitials = (name: string): string => {
-  const parts = name.trim().split(" ");
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
-};
+import { AttachmentModal } from "@/components/chat/AttachmentModal";
+import { ChatHeader } from "@/components/chat/ChatHeader";
+import { ChatInput } from "@/components/chat/ChatInput";
+import { EmojiPickerModal } from "@/components/chat/EmojiPickerModal";
+import { LoadingView } from "@/components/chat/LoadingView";
+import { MessagesList } from "@/components/chat/MessagesList";
+import { RecordingIndicator } from "@/components/chat/RecordingIndicator";
+import { UploadIndicator } from "@/components/chat/UploadIndicator";
+
+import { useChatData } from "@/hooks/chat/useChatData";
+import { useKeyboard } from "@/hooks/chat/useKeyboard";
+import { useRecording } from "@/hooks/chat/useRecording";
+import { useTypingIndicator } from "@/hooks/chat/useTypingIndicator";
+import { sendDocument, sendImage } from "@/utils/messageUpload";
 
 const ChatDetailScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  // State
   const [inputText, setInputText] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [chatData, setChatData] = useState<any>(null);
-  const [currentUserId, setCurrentUserId] = useState<string>("");
-  const [isRecording, setIsRecording] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [isTyping, setIsTyping] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const flatListRef = useRef<FlatList>(null);
-  const recordingAnimation = useRef(new Animated.Value(1)).current;
 
-  const loadChat = async () => {
-    try {
-      const [data, userData] = await Promise.all([
-        getChatById(id),
-        getCurrentUser(),
-      ]);
-      setChatData(data);
-      setMessages(data.messages);
-      setCurrentUserId(userData.id);
-    } catch (error) {
-      console.error("Failed to load chat:", error);
-      Alert.alert("Error", "Failed to load chat");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Refs
+  const flatListRef = useRef<FlatList>(null);
+
+  // Custom hooks
+  const { messages, chatData, currentUserId, loading, setMessages, loadChat } =
+    useChatData(id);
+  const { keyboardHeight } = useKeyboard();
+  const { isRecording, startRecording, stopRecording, recordingAnimation } =
+    useRecording();
+  const { isTyping, handleTyping, handleStopTyping } = useTypingIndicator();
 
   useEffect(() => {
     loadChat();
@@ -99,204 +63,54 @@ const ChatDetailScreen = () => {
           isRead: data.isRead,
         };
         setMessages((prev) => [...prev, newMessage]);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        setTimeout(
+          () => flatListRef.current?.scrollToEnd({ animated: true }),
+          100,
+        );
       }
     };
 
     socketService.on("newMessage", handleNewMessage);
-
-    const handleTyping = (data: any) => {
-      if (data.chatId === id && data.fromUserId !== currentUserId) {
-        setIsTyping(true);
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
-      }
-    };
-
-    const handleStopTyping = (data: any) => {
-      if (data.chatId === id) {
-        setIsTyping(false);
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      }
-    };
-
-    socketService.on("userTyping", handleTyping);
-    socketService.on("userStopTyping", handleStopTyping);
-
-    const keyboardWillShow = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
-      },
+    socketService.on("userTyping", (data: any) =>
+      handleTyping(data, id, currentUserId),
     );
-
-    const keyboardWillHide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => {
-        setKeyboardHeight(0);
-      },
+    socketService.on("userStopTyping", (data: any) =>
+      handleStopTyping(data, id),
     );
 
     return () => {
       socketService.off("newMessage", handleNewMessage);
-      socketService.off("userTyping", handleTyping);
-      socketService.off("userStopTyping", handleStopTyping);
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      keyboardWillShow.remove();
-      keyboardWillHide.remove();
+      socketService.off("userTyping");
+      socketService.off("userStopTyping");
     };
   }, [id, currentUserId]);
 
-  useEffect(() => {
-    if (isRecording) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(recordingAnimation, {
-            toValue: 1.3,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-          Animated.timing(recordingAnimation, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-        ]),
-      ).start();
-    } else {
-      recordingAnimation.setValue(1);
-    }
-  }, [isRecording]);
-
-  const sendImage = async (uri: string) => {
-    try {
-      setUploading(true);
-
-      const filename = uri.split("/").pop() || `image-${Date.now()}.jpg`;
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : "image/jpeg";
-
-      const formData = new FormData();
-      formData.append("file", {
-        uri,
-        name: filename,
-        type,
-      } as any);
-      formData.append("type", "image");
-
-      const token = await AsyncStorage.getItem("token");
-
-      const response = await fetch(`${API_BASE_URL}/api/chats/${id}/message`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to upload image");
-      }
-
-      const result = await response.json();
-      console.log("Image uploaded successfully:", result);
-
-      const newMessage: Message = {
-        id: result.id,
-        senderTitle: result.senderTitle,
-        senderId: result.senderId,
-        type: result.type,
-        content: result.content || result.mediaUrl,
-        time: result.time,
-        isRead: result.isRead,
-      };
-
-      setMessages((prev) => [...prev, newMessage]);
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    } catch (error: any) {
-      console.error("Error uploading image:", error);
-      Alert.alert("Upload Failed", error.message || "Failed to upload image");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const sendDocument = async (
-    uri: string,
-    fileName: string,
-    mimeType: string,
-  ) => {
-    try {
-      setUploading(true);
-
-      const formData = new FormData();
-      formData.append("file", {
-        uri,
-        name: fileName,
-        type: mimeType,
-      } as any);
-      formData.append("type", "document");
-
-      const token = await AsyncStorage.getItem("token");
-
-      const response = await fetch(`${API_BASE_URL}/api/chats/${id}/message`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to upload document");
-      }
-
-      const result = await response.json();
-      console.log("Document uploaded successfully:", result);
-
-      const newMessage: Message = {
-        id: result.id,
-        senderTitle: result.senderTitle,
-        senderId: result.senderId,
-        type: result.type,
-        content: result.fileName || fileName,
-        time: result.time,
-        isRead: result.isRead,
-      };
-
-      setMessages((prev) => [...prev, newMessage]);
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    } catch (error: any) {
-      console.error("Error uploading document:", error);
-      Alert.alert(
-        "Upload Failed",
-        error.message || "Failed to upload document",
-      );
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handleSend = () => {
     if (!inputText.trim()) return;
-
     const messageContent = inputText.trim();
     setInputText("");
-
-    socketService.sendMessage(id, messageContent, "text");
+    socketService.sendMessage({
+      chatId: id,
+      content: messageContent,
+      type: "text",
+    });
   };
 
   const handleEmojiSelect = (emoji: string) => {
     setInputText((prev) => prev + emoji);
     setShowEmojiPicker(false);
+  };
+
+  const handleInputChange = (text: string) => {
+    setInputText(text);
+    const participant = chatData?.participants?.find(
+      (p: any) => p.id !== currentUserId,
+    );
+    if (text.trim() && participant?.id) {
+      socketService.typing(id, participant.id);
+    } else if (participant?.id) {
+      socketService.stopTyping(id, participant.id);
+    }
   };
 
   const handleImagePick = async () => {
@@ -308,7 +122,13 @@ const ChatDetailScreen = () => {
     });
 
     if (!result.canceled && result.assets[0]) {
-      await sendImage(result.assets[0].uri);
+      await sendImage(
+        result.assets[0].uri,
+        id,
+        setMessages,
+        setUploading,
+        flatListRef,
+      );
     }
   };
 
@@ -329,7 +149,13 @@ const ChatDetailScreen = () => {
     });
 
     if (!result.canceled && result.assets[0]) {
-      await sendImage(result.assets[0].uri);
+      await sendImage(
+        result.assets[0].uri,
+        id,
+        setMessages,
+        setUploading,
+        flatListRef,
+      );
     }
   };
 
@@ -346,200 +172,21 @@ const ChatDetailScreen = () => {
         asset.uri,
         asset.name,
         asset.mimeType || "application/octet-stream",
+        id,
+        setMessages,
+        setUploading,
+        flatListRef,
       );
     }
   };
-
-  const startRecording = () => {
-    setIsRecording(true);
-    console.log("Recording started");
-  };
-
-  const stopRecording = () => {
-    setIsRecording(false);
-    console.log("Recording stopped");
-  };
-
-  const formatTime = useCallback((timeString: string) => {
-    const date = new Date(timeString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  }, []);
-
-  const renderMessage = useCallback(
-    ({ item, index }: { item: Message; index: number }) => {
-      const isMyMessage = item.senderId === currentUserId;
-      const showTime =
-        index === messages.length - 1 ||
-        new Date(messages[index + 1].time).getTime() -
-          new Date(item.time).getTime() >
-          300000;
-
-      return (
-        <View
-          className={`px-4 mb-2 ${isMyMessage ? "items-end" : "items-start"}`}
-        >
-          <View
-            style={{
-              backgroundColor:
-                item.type === "image"
-                  ? "transparent"
-                  : isMyMessage
-                    ? "#007AFF"
-                    : isDark
-                      ? "#262626"
-                      : "#f3f4f6",
-              maxWidth: "80%",
-              borderRadius: 18,
-              paddingHorizontal: item.type === "image" ? 0 : 12,
-              paddingVertical: item.type === "image" ? 0 : 8,
-              overflow: "hidden",
-            }}
-          >
-            {item.type === "image" ? (
-              <Image
-                source={{ uri: item.content }}
-                style={{
-                  width: 200,
-                  height: 200,
-                  borderRadius: 18,
-                }}
-                resizeMode="cover"
-              />
-            ) : item.type === "document" ? (
-              <View className="flex-row items-center py-2">
-                <View
-                  style={{
-                    backgroundColor: isMyMessage
-                      ? "#ffffff20"
-                      : isDark
-                        ? "#ffffff20"
-                        : "#00000020",
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                  }}
-                  className="items-center justify-center mr-2"
-                >
-                  <File
-                    size={16}
-                    color={
-                      isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000"
-                    }
-                  />
-                </View>
-                <Text
-                  style={{
-                    color: isMyMessage
-                      ? "#ffffff"
-                      : isDark
-                        ? "#ffffff"
-                        : "#000000",
-                    fontSize: 14,
-                  }}
-                  numberOfLines={1}
-                >
-                  {item.content}
-                </Text>
-              </View>
-            ) : item.type === "voice" || item.type === "audio" ? (
-              <View className="flex-row items-center py-2">
-                <View
-                  style={{
-                    backgroundColor: isMyMessage
-                      ? "#ffffff20"
-                      : isDark
-                        ? "#ffffff20"
-                        : "#00000020",
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                  }}
-                  className="items-center justify-center mr-2"
-                >
-                  <Mic
-                    size={16}
-                    color={
-                      isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000"
-                    }
-                  />
-                </View>
-                <Text
-                  style={{
-                    color: isMyMessage
-                      ? "#ffffff"
-                      : isDark
-                        ? "#ffffff"
-                        : "#000000",
-                    fontSize: 14,
-                  }}
-                >
-                  Voice message
-                </Text>
-              </View>
-            ) : (
-              <Text
-                style={{
-                  color: isMyMessage
-                    ? "#ffffff"
-                    : isDark
-                      ? "#ffffff"
-                      : "#000000",
-                  fontSize: 16,
-                  lineHeight: 20,
-                }}
-              >
-                {item.content}
-              </Text>
-            )}
-          </View>
-          {showTime && (
-            <Text
-              style={{
-                color: isDark ? "#737373" : "#a1a1aa",
-                fontSize: 11,
-                marginTop: 4,
-              }}
-            >
-              {formatTime(item.time)}
-            </Text>
-          )}
-        </View>
-      );
-    },
-    [currentUserId, messages, isDark, formatTime],
-  );
-
-  const keyExtractor = useCallback((item: Message) => item.id, []);
 
   const participant = chatData?.participants?.find(
     (p: any) => p.id !== currentUserId,
   );
 
   if (loading) {
-    return (
-      <SafeAreaView
-        style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
-        className="flex-1"
-      >
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator
-            size="small"
-            color={isDark ? "#ffffff" : "#000000"}
-          />
-        </View>
-      </SafeAreaView>
-    );
+    return <LoadingView isDark={isDark} />;
   }
-
-  const hasAvatar =
-    participant?.avatar &&
-    participant.avatar !== "M" &&
-    participant.avatar !== "";
-  const initials = participant ? getInitials(participant.name) : "";
 
   return (
     <SafeAreaView
@@ -552,490 +199,59 @@ const ChatDetailScreen = () => {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        {/* Header */}
-        <View
-          style={{
-            borderBottomWidth: 0.5,
-            borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
-            backgroundColor: isDark ? "#000000" : "#ffffff",
-          }}
-          className="px-4 py-3"
-        >
-          <View className="flex-row items-center">
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => router.back()}
-              className="mr-3"
-            >
-              <ChevronLeft size={28} color={isDark ? "#ffffff" : "#007AFF"} />
-            </TouchableOpacity>
-
-            <View className="mr-3 relative">
-              {hasAvatar ? (
-                <Image
-                  source={{ uri: participant.avatar }}
-                  style={{ width: 40, height: 40, borderRadius: 20 }}
-                />
-              ) : (
-                <View
-                  style={{
-                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                  }}
-                  className="items-center justify-center"
-                >
-                  <Text
-                    style={{ color: isDark ? "#a1a1aa" : "#737373" }}
-                    className="text-sm font-medium"
-                  >
-                    {initials}
-                  </Text>
-                </View>
-              )}
-              {participant?.isOnline && (
-                <View
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    right: 0,
-                    width: 12,
-                    height: 12,
-                    backgroundColor: "#22c55e",
-                    borderRadius: 6,
-                    borderWidth: 2,
-                    borderColor: isDark ? "#000000" : "#ffffff",
-                  }}
-                />
-              )}
-            </View>
-
-            <View className="flex-1">
-              <Text
-                style={{ color: isDark ? "#ffffff" : "#000000" }}
-                className="font-semibold text-base"
-                numberOfLines={1}
-              >
-                {participant?.name || "Chat"}
-              </Text>
-              <Text
-                style={{ color: isDark ? "#737373" : "#a1a1aa" }}
-                className="text-xs"
-              >
-                {isTyping
-                  ? "typing..."
-                  : participant?.isOnline
-                    ? "online"
-                    : "offline"}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Messages List */}
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={keyExtractor}
-          renderItem={renderMessage}
-          contentContainerStyle={{ paddingVertical: 12 }}
-          inverted={false}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: false })
-          }
-          removeClippedSubviews={true}
-          maxToRenderPerBatch={15}
-          updateCellsBatchingPeriod={50}
-          windowSize={15}
+        <ChatHeader
+          isDark={isDark}
+          participant={participant}
+          isTyping={isTyping}
+          onBack={() => router.back()}
         />
 
-        {/* Upload Indicator */}
-        {uploading && (
-          <View
-            style={{
-              backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-            }}
-          >
-            <View className="flex-row items-center">
-              <ActivityIndicator
-                size="small"
-                color={isDark ? "#ffffff" : "#007AFF"}
-              />
-              <Text
-                style={{ color: isDark ? "#ffffff" : "#000000" }}
-                className="ml-3 text-base"
-              >
-                Uploading...
-              </Text>
-            </View>
-          </View>
-        )}
+        <MessagesList
+          ref={flatListRef}
+          messages={messages}
+          currentUserId={currentUserId}
+          isDark={isDark}
+        />
 
-        {/* Recording Indicator */}
+        {uploading && <UploadIndicator isDark={isDark} />}
+
         {isRecording && (
-          <View
-            style={{
-              backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-            }}
-          >
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center">
-                <Animated.View
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 6,
-                    backgroundColor: "#ef4444",
-                    marginRight: 12,
-                    transform: [{ scale: recordingAnimation }],
-                  }}
-                />
-                <Text
-                  style={{ color: isDark ? "#ffffff" : "#000000" }}
-                  className="text-base font-medium"
-                >
-                  Recording...
-                </Text>
-              </View>
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={stopRecording}
-                style={{
-                  backgroundColor: isDark ? "#262626" : "#e5e7eb",
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                  borderRadius: 20,
-                }}
-              >
-                <Text
-                  style={{ color: isDark ? "#ffffff" : "#000000" }}
-                  className="font-medium"
-                >
-                  Send
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+          <RecordingIndicator
+            isDark={isDark}
+            recordingAnimation={recordingAnimation}
+            onStop={stopRecording}
+          />
         )}
 
-        {/* Input Area */}
-        <View
-          style={{
-            borderTopWidth: 0.5,
-            borderTopColor: isDark ? "#1a1a1a" : "#f3f4f6",
-            backgroundColor: isDark ? "#000000" : "#ffffff",
-            paddingBottom: Platform.OS === "ios" ? 0 : 8,
-          }}
-          className="px-4 py-2"
-        >
-          <View className="flex-row items-center">
-            <TouchableOpacity
-              activeOpacity={0.6}
-              onPress={() => setShowAttachMenu(true)}
-              className="mr-3"
-              disabled={uploading}
-            >
-              <Paperclip
-                size={24}
-                color={
-                  uploading
-                    ? isDark
-                      ? "#404040"
-                      : "#d1d5db"
-                    : isDark
-                      ? "#ffffff"
-                      : "#007AFF"
-                }
-              />
-            </TouchableOpacity>
-
-            <View
-              style={{
-                backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
-                borderWidth: 0.5,
-                borderColor: isDark ? "#262626" : "#e5e7eb",
-                flex: 1,
-                borderRadius: 20,
-                paddingHorizontal: 12,
-                paddingVertical: Platform.OS === "ios" ? 8 : 6,
-                marginRight: 8,
-              }}
-              className="flex-row items-center"
-            >
-              <TextInput
-                style={{
-                  color: isDark ? "#ffffff" : "#000000",
-                  flex: 1,
-                  fontSize: 16,
-                  maxHeight: 100,
-                }}
-                placeholder="Message"
-                placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
-                value={inputText}
-                onChangeText={(text) => {
-                  setInputText(text);
-                  if (text.trim() && participant?.id) {
-                    socketService.typing(id, participant.id);
-                  } else if (participant?.id) {
-                    socketService.stopTyping(id, participant.id);
-                  }
-                }}
-                multiline
-                autoCapitalize="sentences"
-                autoCorrect={true}
-                editable={!uploading}
-              />
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={() => setShowEmojiPicker(true)}
-                className="ml-2"
-                disabled={uploading}
-              >
-                <Smile
-                  size={22}
-                  color={
-                    uploading
-                      ? isDark
-                        ? "#404040"
-                        : "#d1d5db"
-                      : isDark
-                        ? "#737373"
-                        : "#a1a1aa"
-                  }
-                />
-              </TouchableOpacity>
-            </View>
-
-            {inputText.trim() ? (
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={handleSend}
-                disabled={uploading}
-              >
-                <Send size={24} color={uploading ? "#a1a1aa" : "#007AFF"} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPressIn={startRecording}
-                onPressOut={stopRecording}
-                disabled={uploading}
-              >
-                <Mic
-                  size={24}
-                  color={
-                    uploading
-                      ? isDark
-                        ? "#404040"
-                        : "#d1d5db"
-                      : isDark
-                        ? "#ffffff"
-                        : "#007AFF"
-                  }
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+        <ChatInput
+          isDark={isDark}
+          inputText={inputText}
+          uploading={uploading}
+          isRecording={isRecording}
+          onChangeText={handleInputChange}
+          onSend={handleSend}
+          onAttach={() => setShowAttachMenu(true)}
+          onEmoji={() => setShowEmojiPicker(true)}
+          onStartRecording={startRecording}
+          onStopRecording={stopRecording}
+        />
       </KeyboardAvoidingView>
 
-      {/* Emoji Picker Modal */}
-      <Modal
+      <EmojiPickerModal
         visible={showEmojiPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowEmojiPicker(false)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setShowEmojiPicker(false)}
-          className="flex-1 justify-end"
-          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-        >
-          <View
-            style={{
-              backgroundColor: isDark ? "#000000" : "#ffffff",
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              paddingBottom: Platform.OS === "ios" ? 34 : 20,
-            }}
-          >
-            <View className="flex-row items-center justify-between px-4 py-4">
-              <Text
-                style={{ color: isDark ? "#ffffff" : "#000000" }}
-                className="text-lg font-semibold"
-              >
-                Emoji
-              </Text>
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={() => setShowEmojiPicker(false)}
-              >
-                <X size={24} color={isDark ? "#ffffff" : "#000000"} />
-              </TouchableOpacity>
-            </View>
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                paddingHorizontal: 16,
-                paddingBottom: 16,
-              }}
-            >
-              {EMOJIS.map((emoji) => (
-                <TouchableOpacity
-                  key={emoji}
-                  activeOpacity={0.6}
-                  onPress={() => handleEmojiSelect(emoji)}
-                  style={{
-                    width: "20%",
-                    aspectRatio: 1,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 32 }}>{emoji}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        isDark={isDark}
+        onClose={() => setShowEmojiPicker(false)}
+        onSelect={handleEmojiSelect}
+      />
 
-      {/* Attachment Menu Modal */}
-      <Modal
+      <AttachmentModal
         visible={showAttachMenu}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowAttachMenu(false)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setShowAttachMenu(false)}
-          className="flex-1 justify-end"
-          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-        >
-          <View
-            style={{
-              backgroundColor: isDark ? "#000000" : "#ffffff",
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              paddingBottom: Platform.OS === "ios" ? 34 : 20,
-            }}
-          >
-            <View className="flex-row items-center justify-between px-4 py-4">
-              <Text
-                style={{ color: isDark ? "#ffffff" : "#000000" }}
-                className="text-lg font-semibold"
-              >
-                Send Attachment
-              </Text>
-              <TouchableOpacity
-                activeOpacity={0.6}
-                onPress={() => setShowAttachMenu(false)}
-              >
-                <X size={24} color={isDark ? "#ffffff" : "#000000"} />
-              </TouchableOpacity>
-            </View>
-            <View className="px-4 pb-4">
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={handleImagePick}
-                style={{
-                  backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 12,
-                }}
-                className="flex-row items-center"
-              >
-                <View
-                  style={{
-                    backgroundColor: "#007AFF",
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                  }}
-                  className="items-center justify-center mr-3"
-                >
-                  <ImageIcon size={20} color="#ffffff" />
-                </View>
-                <Text
-                  style={{ color: isDark ? "#ffffff" : "#000000" }}
-                  className="text-base font-medium"
-                >
-                  Photo from Gallery
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={handleCameraPick}
-                style={{
-                  backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 12,
-                }}
-                className="flex-row items-center"
-              >
-                <View
-                  style={{
-                    backgroundColor: "#10b981",
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                  }}
-                  className="items-center justify-center mr-3"
-                >
-                  <ImageIcon size={20} color="#ffffff" />
-                </View>
-                <Text
-                  style={{ color: isDark ? "#ffffff" : "#000000" }}
-                  className="text-base font-medium"
-                >
-                  Take Photo
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={handleDocumentPick}
-                style={{
-                  backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
-                  borderRadius: 12,
-                  padding: 16,
-                }}
-                className="flex-row items-center"
-              >
-                <View
-                  style={{
-                    backgroundColor: "#f59e0b",
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                  }}
-                  className="items-center justify-center mr-3"
-                >
-                  <Paperclip size={20} color="#ffffff" />
-                </View>
-                <Text
-                  style={{ color: isDark ? "#ffffff" : "#000000" }}
-                  className="text-base font-medium"
-                >
-                  Document
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        isDark={isDark}
+        onClose={() => setShowAttachMenu(false)}
+        onImagePick={handleImagePick}
+        onCameraPick={handleCameraPick}
+        onDocumentPick={handleDocumentPick}
+      />
     </SafeAreaView>
   );
 };
