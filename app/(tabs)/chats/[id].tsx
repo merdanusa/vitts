@@ -1,5 +1,5 @@
 import { getChatById, getCurrentUser, Message } from "@/services/api";
-import { socketService } from "@/services/socket.service";
+import { socketService } from "@/services/socket";
 import { RootState } from "@/store";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronLeft, Mic, Paperclip, Send, Smile } from "lucide-react-native";
