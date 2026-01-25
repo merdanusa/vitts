@@ -1,7 +1,7 @@
+import { getInitials } from "@/utils/helpers";
 import { ChevronLeft } from "lucide-react-native";
 import React from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
-import { getInitials } from "../../../../utils/helpers";
 
 interface ChatHeaderProps {
   isDark: boolean;
