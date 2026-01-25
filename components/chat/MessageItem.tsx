@@ -1,8 +1,8 @@
 import { Message } from "@/services/api";
+import { formatTime } from "@/utils/helpers";
 import { File, Mic } from "lucide-react-native";
 import React from "react";
 import { Image, Text, View } from "react-native";
-import { formatTime } from "../../../../utils/helpers";
 
 interface MessageItemProps {
   message: Message;
