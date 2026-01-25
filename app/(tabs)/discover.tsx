@@ -1,8 +1,9 @@
 import { IOSAlert, showIOSAlert } from "@/components/IOSAlertDialog";
 import { createOrGetChat, getAllUsers, searchUsers } from "@/services/api";
 import { RootState } from "@/store";
-import { useNavigation } from "@react-navigation/native";
-import React, { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
+import { Send } from "lucide-react-native";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -35,12 +36,12 @@ const getInitials = (name: string): string => {
 
 const DiscoverScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingUserId, setAddingUserId] = useState<string | null>(null);
   const [alertConfig, setAlertConfig] = useState<any>(null);
-  const navigation = useNavigation();
 
   const handleSearch = async (query: string) => {
     const trimmed = query.trim();
@@ -67,15 +68,11 @@ const DiscoverScreen = () => {
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  const handleAddUser = async (userId: string) => {
+  const handleStartChat = async (userId: string) => {
     setAddingUserId(userId);
     try {
       const chat = await createOrGetChat({ otherUserId: userId });
-      setAlertConfig(
-        showIOSAlert.simple("Success", "Chat created!", () => {
-          navigation.navigate("Chat", { chatId: chat.id });
-        }),
-      );
+      router.push(`/chats/${chat.id}`);
     } catch (error) {
       setAlertConfig(showIOSAlert.simple("Error", "Failed to create chat"));
       console.error(error);
@@ -84,112 +81,112 @@ const DiscoverScreen = () => {
     }
   };
 
-  const renderUserItem = ({ item }: { item: User }) => {
-    const initials = getInitials(item.name);
-    const isAdding = addingUserId === item.id;
-    const hasAvatar = item.avatar && item.avatar !== "M" && item.avatar !== "";
+  const renderUserItem = useCallback(
+    ({ item }: { item: User }) => {
+      const initials = getInitials(item.name);
+      const isAdding = addingUserId === item.id;
+      const hasAvatar =
+        item.avatar && item.avatar !== "M" && item.avatar !== "";
 
-    return (
-      <TouchableOpacity
-        activeOpacity={0.7}
-        style={{
-          backgroundColor: isDark ? "#000000" : "#ffffff",
-          borderBottomWidth: 0.5,
-          borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
-        }}
-        className="px-4 py-3"
-      >
-        <View className="flex-row items-center">
-          <View className="mr-3 relative">
-            {hasAvatar ? (
-              <Image
-                source={{ uri: item.avatar }}
-                style={{ width: 48, height: 48, borderRadius: 24 }}
-              />
-            ) : (
-              <View
-                style={{
-                  backgroundColor: isDark ? "#262626" : "#f3f4f6",
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
-                }}
-                className="items-center justify-center"
-              >
-                <Text
-                  style={{ color: isDark ? "#a1a1aa" : "#737373" }}
-                  className="text-lg font-medium"
+      return (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => handleStartChat(item.id)}
+          disabled={isAdding}
+          style={{
+            backgroundColor: isDark ? "#000000" : "#ffffff",
+            borderBottomWidth: 0.5,
+            borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
+          }}
+          className="px-4 py-3"
+        >
+          <View className="flex-row items-center">
+            <View className="mr-3 relative">
+              {hasAvatar ? (
+                <Image
+                  source={{ uri: item.avatar }}
+                  style={{ width: 48, height: 48, borderRadius: 24 }}
+                />
+              ) : (
+                <View
+                  style={{
+                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                  }}
+                  className="items-center justify-center"
                 >
-                  {initials}
-                </Text>
-              </View>
-            )}
-            {item.isOnline && (
-              <View
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 0,
-                  width: 12,
-                  height: 12,
-                  backgroundColor: "#22c55e",
-                  borderRadius: 6,
-                  borderWidth: 2,
-                  borderColor: isDark ? "#000000" : "#ffffff",
-                }}
-              />
-            )}
-          </View>
+                  <Text
+                    style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+                    className="text-lg font-medium"
+                  >
+                    {initials}
+                  </Text>
+                </View>
+              )}
+              {item.isOnline && (
+                <View
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    right: 0,
+                    width: 12,
+                    height: 12,
+                    backgroundColor: "#22c55e",
+                    borderRadius: 6,
+                    borderWidth: 2,
+                    borderColor: isDark ? "#000000" : "#ffffff",
+                  }}
+                />
+              )}
+            </View>
 
-          <View className="flex-1 mr-3">
-            <Text
-              style={{ color: isDark ? "#ffffff" : "#000000" }}
-              className="font-medium text-base"
-            >
-              {item.name}
-            </Text>
-            <Text
-              style={{ color: isDark ? "#737373" : "#a1a1aa" }}
-              className="text-sm"
-            >
-              @{item.login}
-            </Text>
-          </View>
+            <View className="flex-1 mr-3">
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="font-medium text-base"
+              >
+                {item.name}
+              </Text>
+              <Text
+                style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+                className="text-sm"
+              >
+                @{item.login}
+              </Text>
+            </View>
 
-          <TouchableOpacity
-            onPress={() => handleAddUser(item.id)}
-            disabled={isAdding}
-            activeOpacity={0.7}
-            style={{
-              backgroundColor: isAdding
-                ? isDark
-                  ? "#1a1a1a"
-                  : "#f3f4f6"
-                : isDark
-                  ? "#ffffff"
-                  : "#000000",
-            }}
-            className="px-4 py-2 rounded-full"
-          >
-            <Text
+            <View
               style={{
-                color: isAdding
+                backgroundColor: isAdding
                   ? isDark
-                    ? "#737373"
-                    : "#a1a1aa"
-                  : isDark
-                    ? "#000000"
-                    : "#ffffff",
+                    ? "#1a1a1a"
+                    : "#f3f4f6"
+                  : "#007AFF",
+                width: 36,
+                height: 36,
+                borderRadius: 18,
               }}
-              className="text-sm font-medium"
+              className="items-center justify-center"
             >
-              {isAdding ? "..." : "Add"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
-  };
+              {isAdding ? (
+                <ActivityIndicator
+                  size="small"
+                  color={isDark ? "#737373" : "#a1a1aa"}
+                />
+              ) : (
+                <Send size={18} color="#ffffff" />
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [addingUserId, isDark, handleStartChat],
+  );
+
+  const keyExtractor = useCallback((item: User) => item.id, []);
 
   return (
     <SafeAreaView
@@ -241,9 +238,13 @@ const DiscoverScreen = () => {
           ) : (
             <FlatList
               data={users}
-              keyExtractor={(item) => item.id}
+              keyExtractor={keyExtractor}
               renderItem={renderUserItem}
               showsVerticalScrollIndicator={false}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              windowSize={10}
               ListEmptyComponent={() => (
                 <View className="items-center justify-center mt-32 px-8">
                   <Text
@@ -272,4 +273,4 @@ const DiscoverScreen = () => {
   );
 };
 
-export default DiscoverScreen;
+export default React.memo(DiscoverScreen);
