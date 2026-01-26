@@ -1,9 +1,9 @@
+import { ENV } from "@/configs/env.config";
 import { Message } from "@/services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
+const API_BASE_URL = ENV.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
 
 export const sendImage = async (
   uri: string,
