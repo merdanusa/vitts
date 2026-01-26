@@ -12,19 +12,25 @@ interface MessagesListProps {
 export const MessagesList = forwardRef<FlatList, MessagesListProps>(
   ({ messages, currentUserId, isDark }, ref) => {
     const renderMessage = useCallback(
-      ({ item, index }: { item: Message; index: number }) => (
-        <MessageItem
-          message={item}
-          isMyMessage={item.senderId === currentUserId}
-          showTime={
-            index === messages.length - 1 ||
-            new Date(messages[index + 1].time).getTime() -
-              new Date(item.time).getTime() >
-              300000
-          }
-          isDark={isDark}
-        />
-      ),
+      ({ item, index }: { item: Message; index: number }) => {
+        // Since the list is inverted, we need to check the previous message (not next)
+        const previousMessage = messages[index - 1];
+        const showTime =
+          index === 0 ||
+          !previousMessage ||
+          new Date(item.time).getTime() -
+            new Date(previousMessage.time).getTime() >
+            300000;
+
+        return (
+          <MessageItem
+            message={item}
+            isMyMessage={item.senderId === currentUserId}
+            showTime={showTime}
+            isDark={isDark}
+          />
+        );
+      },
       [currentUserId, messages, isDark],
     );
 
@@ -33,15 +39,12 @@ export const MessagesList = forwardRef<FlatList, MessagesListProps>(
     return (
       <FlatList
         ref={ref}
-        data={messages}
+        data={[...messages].reverse()} // Reverse the array for inverted list
         keyExtractor={keyExtractor}
         renderItem={renderMessage}
         contentContainerStyle={{ paddingVertical: 12 }}
-        inverted={false}
+        inverted={true} // This makes messages appear from bottom to top
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() =>
-          (ref as any)?.current?.scrollToEnd({ animated: false })
-        }
         removeClippedSubviews={true}
         maxToRenderPerBatch={15}
         updateCellsBatchingPeriod={50}

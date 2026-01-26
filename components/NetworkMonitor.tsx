@@ -1,23 +1,27 @@
-import { useEffect, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import NetInfo from "@react-native-community/netinfo";
 import { onReconnect } from "@/services/api";
+import NetInfo from "@react-native-community/netinfo";
+import { useEffect, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface NetworkMonitorProps {
   onReconnect?: () => void;
 }
 
-export function NetworkMonitor({ onReconnect: onReconnectCallback }: NetworkMonitorProps = {}) {
+export function NetworkMonitor({
+  onReconnect: onReconnectCallback,
+}: NetworkMonitorProps = {}) {
   const [isConnected, setIsConnected] = useState<boolean | null>(true);
   const [showBanner, setShowBanner] = useState(false);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
-      const connected = state.isConnected && state.isInternetReachable !== false;
-      
+      const connected =
+        state.isConnected && state.isInternetReachable !== false;
+
       if (connected !== isConnected) {
         setIsConnected(connected);
-        
+
         if (connected) {
           console.log("[Network] Connection restored");
           setShowBanner(true);
@@ -45,16 +49,18 @@ export function NetworkMonitor({ onReconnect: onReconnectCallback }: NetworkMoni
   }
 
   return (
-    <View
-      style={[
-        styles.banner,
-        isConnected ? styles.connected : styles.disconnected,
-      ]}
-    >
-      <Text style={styles.text}>
-        {isConnected ? "✓ Back online" : "⚠ No internet connection"}
-      </Text>
-    </View>
+    <SafeAreaView>
+      <View
+        style={[
+          styles.banner,
+          isConnected ? styles.connected : styles.disconnected,
+        ]}
+      >
+        <Text style={styles.text}>
+          {isConnected ? "✓ Back online" : "⚠ No internet connection"}
+        </Text>
+      </View>
+    </SafeAreaView>
   );
 }
 
