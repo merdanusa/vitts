@@ -1,3 +1,4 @@
+import { ENV } from "@/configs/env.config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import axios, {
@@ -7,8 +8,7 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
+const API_BASE_URL = ENV.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
 
 // ============================================================================
 // AUTO-RECONNECT CONFIGURATION

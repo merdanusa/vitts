@@ -26,7 +26,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
-import AvatarUploadScreen from "../(settings)/avatar_upload";
+import AvatarUploadScreen from "../../components/avatar_upload";
 
 const { width } = Dimensions.get("window");
 
