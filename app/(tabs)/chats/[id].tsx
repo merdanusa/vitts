@@ -2,7 +2,15 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, FlatList, Keyboard, Platform, View } from "react-native";
+import {
+  Alert,
+  FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  View,
+} from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
@@ -247,60 +255,66 @@ const ChatDetailScreen = () => {
       className="flex-1"
       edges={["top"]}
     >
-      <View className="flex-1">
-        <ChatHeader
-          isDark={isDark}
-          participant={participant}
-          isTyping={isTyping}
-          onBack={() => router.back()}
-        />
-
-        <MessagesList
-          ref={flatListRef}
-          messages={messages}
-          currentUserId={currentUserId}
-          isDark={isDark}
-        />
-
-        {uploading && <UploadIndicator isDark={isDark} />}
-
-        {isRecording && (
-          <RecordingIndicator
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
+        keyboardVerticalOffset={0}
+      >
+        <View className="flex-1">
+          <ChatHeader
             isDark={isDark}
-            recordingAnimation={recordingAnimation}
-            onStop={stopRecording}
+            participant={participant}
+            isTyping={isTyping}
+            onBack={() => router.back()}
           />
-        )}
 
-        <ChatInput
+          <MessagesList
+            ref={flatListRef}
+            messages={messages}
+            currentUserId={currentUserId}
+            isDark={isDark}
+          />
+
+          {uploading && <UploadIndicator isDark={isDark} />}
+
+          {isRecording && (
+            <RecordingIndicator
+              isDark={isDark}
+              recordingAnimation={recordingAnimation}
+              onStop={stopRecording}
+            />
+          )}
+
+          <ChatInput
+            isDark={isDark}
+            inputText={inputText}
+            uploading={uploading}
+            isRecording={isRecording}
+            onChangeText={handleInputChange}
+            onSend={handleSend}
+            onAttach={() => setShowAttachMenu(true)}
+            onEmoji={() => setShowEmojiPicker(true)}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+          />
+        </View>
+
+        <EmojiPickerModal
+          visible={showEmojiPicker}
           isDark={isDark}
-          inputText={inputText}
-          uploading={uploading}
-          isRecording={isRecording}
-          onChangeText={handleInputChange}
-          onSend={handleSend}
-          onAttach={() => setShowAttachMenu(true)}
-          onEmoji={() => setShowEmojiPicker(true)}
-          onStartRecording={startRecording}
-          onStopRecording={stopRecording}
+          onClose={() => setShowEmojiPicker(false)}
+          onSelect={handleEmojiSelect}
         />
-      </View>
 
-      <EmojiPickerModal
-        visible={showEmojiPicker}
-        isDark={isDark}
-        onClose={() => setShowEmojiPicker(false)}
-        onSelect={handleEmojiSelect}
-      />
-
-      <AttachmentModal
-        visible={showAttachMenu}
-        isDark={isDark}
-        onClose={() => setShowAttachMenu(false)}
-        onImagePick={handleImagePick}
-        onCameraPick={handleCameraPick}
-        onDocumentPick={handleDocumentPick}
-      />
+        <AttachmentModal
+          visible={showAttachMenu}
+          isDark={isDark}
+          onClose={() => setShowAttachMenu(false)}
+          onImagePick={handleImagePick}
+          onCameraPick={handleCameraPick}
+          onDocumentPick={handleDocumentPick}
+        />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
