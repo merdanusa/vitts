@@ -8,7 +8,8 @@ import axios, {
   InternalAxiosRequestConfig,
 } from "axios";
 
-const API_BASE_URL = ENV.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
+const API_BASE_URL =
+  ENV.EXPO_PUBLIC_API_URL || "https://vittsbackend-production.up.railway.app";
 
 // ============================================================================
 // AUTO-RECONNECT CONFIGURATION

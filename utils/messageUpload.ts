@@ -3,7 +3,8 @@ import { Message } from "@/services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 
-const API_BASE_URL = ENV.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000";
+const API_BASE_URL =
+  ENV.EXPO_PUBLIC_API_URL || "https://vittsbackend-production.up.railway.app";
 
 export const sendImage = async (
   uri: string,

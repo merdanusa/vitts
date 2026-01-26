@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { io, Socket } from "socket.io-client";
 
 const SOCKET_URL = (
-  ENV.EXPO_PUBLIC_API_URL || "http://192.168.1.101:4000"
+  ENV.EXPO_PUBLIC_API_URL || "https://vittsbackend-production.up.railway.app"
 ).replace(/\/$/, "");
 
 class SocketService {
