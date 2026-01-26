@@ -1,7 +1,7 @@
 import { ChatListItem, getCurrentUser, getMyChats } from "@/services/api";
 import { RootState } from "@/store";
 import { useRouter } from "expo-router";
-import { CheckCheck, Search } from "lucide-react-native";
+import { CheckCheck, Search, UserPlus } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -159,6 +159,10 @@ const ChatsScreen = () => {
 
   const handleNewChat = useCallback(() => {
     router.push("/discover");
+  }, [router]);
+
+  const handleContactsPress = useCallback(() => {
+    router.push("/contacts");
   }, [router]);
 
   const renderChatItem = useCallback(
@@ -392,6 +396,29 @@ const ChatsScreen = () => {
             windowSize={10}
           />
         )}
+
+        {/* Floating Action Button */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={handleContactsPress}
+          style={{
+            position: "absolute",
+            bottom: 20,
+            right: 20,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: "#007AFF",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+          className="items-center justify-center"
+        >
+          <UserPlus size={24} color="#ffffff" />
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

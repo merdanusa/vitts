@@ -2,7 +2,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { Alert, FlatList, KeyboardAvoidingView, Platform } from "react-native";
+import { Alert, FlatList, Keyboard, Platform, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
@@ -20,7 +20,6 @@ import { RecordingIndicator } from "@/components/chat/RecordingIndicator";
 import { UploadIndicator } from "@/components/chat/UploadIndicator";
 
 import { useChatData } from "@/hooks/chat/useChatData";
-import { useKeyboard } from "@/hooks/chat/useKeyboard";
 import { useRecording } from "@/hooks/chat/useRecording";
 import { useTypingIndicator } from "@/hooks/chat/useTypingIndicator";
 import { sendDocument, sendImage } from "@/utils/messageUpload";
@@ -35,6 +34,7 @@ const ChatDetailScreen = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
@@ -42,10 +42,34 @@ const ChatDetailScreen = () => {
   // Custom hooks
   const { messages, chatData, currentUserId, loading, setMessages, loadChat } =
     useChatData(id);
-  const { keyboardHeight } = useKeyboard();
   const { isRecording, startRecording, stopRecording, recordingAnimation } =
     useRecording();
   const { isTyping, handleTyping, handleStopTyping } = useTypingIndicator();
+
+  // Keyboard listeners
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => {
+        setKeyboardVisible(true);
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      },
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setKeyboardVisible(false);
+      },
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   useEffect(() => {
     loadChat();
@@ -223,11 +247,7 @@ const ChatDetailScreen = () => {
       className="flex-1"
       edges={["top"]}
     >
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      >
+      <View className="flex-1">
         <ChatHeader
           isDark={isDark}
           participant={participant}
@@ -264,7 +284,7 @@ const ChatDetailScreen = () => {
           onStartRecording={startRecording}
           onStopRecording={stopRecording}
         />
-      </KeyboardAvoidingView>
+      </View>
 
       <EmojiPickerModal
         visible={showEmojiPicker}

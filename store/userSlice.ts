@@ -49,7 +49,7 @@ const userSlice = createSlice({
       console.log("Avatar updated:", action.payload);
     },
     logout: () => {
-      SecureStore.deleteItemAsync("userToken");
+      SecureStore.deleteItemAsync("token");
       return initialState;
     },
   },

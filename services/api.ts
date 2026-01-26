@@ -1,5 +1,4 @@
 import { ENV } from "@/configs/env.config";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import axios, {
   AxiosError,
@@ -7,6 +6,7 @@ import axios, {
   AxiosProgressEvent,
   InternalAxiosRequestConfig,
 } from "axios";
+import * as SecureStore from "expo-secure-store";
 
 const API_BASE_URL =
   ENV.EXPO_PUBLIC_API_URL || "https://vittsbackend-production.up.railway.app";
@@ -71,7 +71,7 @@ api.interceptors.request.use(
         return Promise.reject(new Error("No internet connection"));
       }
 
-      const token = await AsyncStorage.getItem("token");
+      const token = await SecureStore.getItemAsync("token");
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -80,7 +80,7 @@ api.interceptors.request.use(
       );
       return config;
     } catch (error) {
-      console.error("Failed to read token from AsyncStorage:", error);
+      console.error("Failed to read token from SecureStore:", error);
       return config;
     }
   },
@@ -113,8 +113,12 @@ api.interceptors.response.use(
 
     // Handle 401 Unauthorized
     if (error.response?.status === 401) {
-      console.warn("401 Unauthorized → removing token");
-      await AsyncStorage.removeItem("token");
+      if (originalRequest.headers?.Authorization) {
+        console.warn("401 Unauthorized with token → removing token");
+        await SecureStore.deleteItemAsync("token");
+      } else {
+        console.warn("401 Unauthorized - no token provided");
+      }
       return Promise.reject(error);
     }
 
@@ -252,7 +256,7 @@ export const register = async (
   console.log("[AUTH] Register attempt:", data.login);
   const res = await api.post<AuthResponse>("/api/auth/register", data);
   if (res.data.token) {
-    await AsyncStorage.setItem("token", res.data.token);
+    await SecureStore.setItemAsync("token", res.data.token);
     console.log("[AUTH] Token saved after register");
   }
   return res.data;
@@ -262,7 +266,7 @@ export const login = async (data: LoginPayload): Promise<AuthResponse> => {
   console.log("[AUTH] Login attempt:", data.login);
   const res = await api.post<AuthResponse>("/api/auth/login", data);
   if (res.data.token) {
-    await AsyncStorage.setItem("token", res.data.token);
+    await SecureStore.setItemAsync("token", res.data.token);
     console.log("[AUTH] Token saved after login");
   }
   return res.data;
@@ -270,7 +274,7 @@ export const login = async (data: LoginPayload): Promise<AuthResponse> => {
 
 export const logout = async () => {
   console.log("[AUTH] Logging out – clearing token");
-  await AsyncStorage.removeItem("token");
+  await SecureStore.deleteItemAsync("token");
 };
 
 // ============================================================================
@@ -578,7 +582,7 @@ export const verifyEmail = async (data: {
     );
 
     if (res.data.token) {
-      await AsyncStorage.setItem("token", res.data.token);
+      await SecureStore.setItemAsync("token", res.data.token);
       console.log("[AUTH] Token saved after email verification");
     }
 
@@ -614,4 +618,129 @@ export const resetPassword = async (
   }
 };
 
+export interface Contact {
+  id: string;
+  name: string;
+  login: string;
+  avatar: string;
+  phoneNumber?: string;
+  isOnline: boolean;
+  isFavorite?: boolean;
+  isBlocked?: boolean;
+  addedAt?: string;
+}
+
+export interface SyncContactsPayload {
+  phoneNumbers: string[];
+}
+
+export interface SyncContactsResponse {
+  users: Contact[];
+}
+
+export interface AddContactPayload {
+  contactId: string;
+  username?: string;
+}
+
+export interface RemoveContactPayload {
+  contactId: string;
+}
+
+export interface ToggleFavoritePayload {
+  contactId: string;
+}
+
+export interface ToggleBlockPayload {
+  contactId: string;
+}
+
+// Get all my contacts
+export const getMyContacts = async (): Promise<Contact[]> => {
+  console.log("[CONTACTS] Fetching my contacts");
+  const res = await api.get<{ contacts: Contact[] }>("/api/contacts");
+  return res.data.contacts;
+};
+
+// Sync device contacts with backend
+export const syncContacts = async (
+  phoneNumbers: string[],
+): Promise<Contact[]> => {
+  console.log("[CONTACTS] Syncing", phoneNumbers.length, "phone numbers");
+  const res = await api.post<SyncContactsResponse>("/api/contacts/sync", {
+    phoneNumbers,
+  });
+  console.log("[CONTACTS] Found", res.data.users.length, "registered users");
+  return res.data.users;
+};
+
+// Add contact
+export const addContact = async (
+  contactId: string,
+  nickname?: string,
+): Promise<{ success: boolean }> => {
+  console.log("[CONTACTS] Adding contact:", contactId);
+  const res = await api.post<{ success: boolean }>("/api/contacts/add", {
+    contactId,
+    username: nickname,
+  });
+  console.log("[CONTACTS] Contact added successfully");
+  return res.data;
+};
+
+// Remove contact
+export const removeContact = async (
+  contactId: string,
+): Promise<{ success: boolean }> => {
+  console.log("[CONTACTS] Removing contact:", contactId);
+  const res = await api.post<{ success: boolean }>("/api/contacts/remove", {
+    contactId,
+  });
+  console.log("[CONTACTS] Contact removed successfully");
+  return res.data;
+};
+
+// Toggle favorite
+export const toggleFavorite = async (
+  contactId: string,
+): Promise<{ success: boolean; isFavorite: boolean }> => {
+  console.log("[CONTACTS] Toggling favorite:", contactId);
+  const res = await api.post<{ success: boolean; isFavorite: boolean }>(
+    "/api/contacts/favorite",
+    { contactId },
+  );
+  console.log(
+    "[CONTACTS] Favorite toggled:",
+    res.data.isFavorite ? "ON" : "OFF",
+  );
+  return res.data;
+};
+
+// Toggle block
+export const toggleBlock = async (
+  contactId: string,
+): Promise<{ success: boolean; isBlocked: boolean }> => {
+  console.log("[CONTACTS] Toggling block:", contactId);
+  const res = await api.post<{ success: boolean; isBlocked: boolean }>(
+    "/api/contacts/block",
+    { contactId },
+  );
+  console.log("[CONTACTS] Block toggled:", res.data.isBlocked ? "ON" : "OFF");
+  return res.data;
+};
+
+// Invite contact via SMS (optional)
+export const inviteContact = async (
+  phoneNumber: string,
+  message: string,
+): Promise<{ success: boolean }> => {
+  console.log("[CONTACTS] Sending invitation to:", phoneNumber);
+  const res = await api.post<{ success: boolean }>("/api/contacts/invite", {
+    phoneNumber,
+    message,
+  });
+  return res.data;
+};
+
 export default api;
+  
