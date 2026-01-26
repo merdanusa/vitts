@@ -1,5 +1,4 @@
 import { ENV } from "@/configs/env.config";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import axios, {
   AxiosError,
@@ -12,10 +11,6 @@ import * as SecureStore from "expo-secure-store";
 const API_BASE_URL =
   ENV.EXPO_PUBLIC_API_URL || "https://vittsbackend-production.up.railway.app";
 
-// ============================================================================
-// AUTO-RECONNECT CONFIGURATION
-// ============================================================================
-
 interface RetryConfig {
   maxRetries: number;
   retryDelay: number;
@@ -25,12 +20,10 @@ interface RetryConfig {
 
 const RETRY_CONFIG: RetryConfig = {
   maxRetries: 3,
-  retryDelay: 1000, // Base delay in ms
+  retryDelay: 1000,
   retryableStatuses: [408, 429, 500, 502, 503, 504],
   shouldRetry: (error: AxiosError) => {
-    // Retry on network errors
     if (!error.response) return true;
-    // Retry on specific status codes
     if (RETRY_CONFIG.retryableStatuses.includes(error.response.status)) {
       return true;
     }
@@ -38,17 +31,11 @@ const RETRY_CONFIG: RetryConfig = {
   },
 };
 
-// Track retry attempts
 const retryCountMap = new Map<string, number>();
 
-// Exponential backoff delay
 const getRetryDelay = (retryCount: number): number => {
   return Math.min(RETRY_CONFIG.retryDelay * Math.pow(2, retryCount), 10000);
 };
-
-// ============================================================================
-// AXIOS INSTANCE
-// ============================================================================
 
 export const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -58,14 +45,9 @@ export const api: AxiosInstance = axios.create({
   timeout: 30000,
 });
 
-// ============================================================================
-// REQUEST INTERCEPTOR (with network check)
-// ============================================================================
-
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     try {
-      // Check network connectivity before making request
       const netInfo = await NetInfo.fetch();
       if (!netInfo.isConnected) {
         console.warn("[API] No internet connection");
@@ -91,13 +73,8 @@ api.interceptors.request.use(
   },
 );
 
-// ============================================================================
-// RESPONSE INTERCEPTOR (with auto-retry)
-// ============================================================================
-
 api.interceptors.response.use(
   (response) => {
-    // Clear retry count on success
     const requestKey = `${response.config.method}-${response.config.url}`;
     retryCountMap.delete(requestKey);
 
@@ -112,7 +89,6 @@ api.interceptors.response.use(
       _retryCount?: number;
     };
 
-    // Handle 401 Unauthorized
     if (error.response?.status === 401) {
       if (originalRequest.headers?.Authorization) {
         console.warn("401 Unauthorized with token → removing token");
@@ -123,7 +99,6 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Check if we should retry
     if (!originalRequest || originalRequest._retry) {
       console.error(
         `[API ERROR] ${error.response?.status || "unknown"}`,
@@ -132,43 +107,34 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Get retry count for this request
     const requestKey = `${originalRequest.method}-${originalRequest.url}`;
     const retryCount = retryCountMap.get(requestKey) || 0;
 
-    // Check if we should retry this error
     if (
       RETRY_CONFIG.shouldRetry(error) &&
       retryCount < RETRY_CONFIG.maxRetries
     ) {
-      // Increment retry count
       retryCountMap.set(requestKey, retryCount + 1);
       originalRequest._retry = true;
       originalRequest._retryCount = retryCount + 1;
 
-      // Calculate delay with exponential backoff
       const delay = getRetryDelay(retryCount);
 
       console.warn(
         `[API RETRY] Attempt ${retryCount + 1}/${RETRY_CONFIG.maxRetries} after ${delay}ms - ${originalRequest.method?.toUpperCase()} ${originalRequest.url}`,
       );
 
-      // Wait before retrying
       await new Promise((resolve) => setTimeout(resolve, delay));
 
-      // Check network again before retry
       const netInfo = await NetInfo.fetch();
       if (!netInfo.isConnected) {
         console.warn("[API RETRY] No internet connection, waiting...");
-        // Wait a bit longer if no connection
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      // Retry the request
       return api(originalRequest);
     }
 
-    // Max retries reached or non-retryable error
     retryCountMap.delete(requestKey);
     console.error(
       `[API ERROR] ${error.response?.status || "unknown"}`,
@@ -178,23 +144,16 @@ api.interceptors.response.use(
   },
 );
 
-// ============================================================================
-// NETWORK MONITORING
-// ============================================================================
-
 let isOnline = true;
 let reconnectCallbacks: (() => void)[] = [];
 
-// Subscribe to network changes
 NetInfo.addEventListener((state) => {
   const wasOffline = !isOnline;
   isOnline = state.isConnected ?? true;
 
   if (wasOffline && isOnline) {
     console.log("[NETWORK] Connection restored - triggering callbacks");
-    // Clear all retry counts
     retryCountMap.clear();
-    // Trigger all registered callbacks
     reconnectCallbacks.forEach((callback) => {
       try {
         callback();
@@ -207,30 +166,24 @@ NetInfo.addEventListener((state) => {
   }
 });
 
-// Register callback to be called when network reconnects
 export const onReconnect = (callback: () => void): (() => void) => {
   reconnectCallbacks.push(callback);
-  // Return unsubscribe function
   return () => {
     reconnectCallbacks = reconnectCallbacks.filter((cb) => cb !== callback);
   };
 };
 
-// Check current network status
 export const checkNetworkStatus = async (): Promise<boolean> => {
   const netInfo = await NetInfo.fetch();
   return netInfo.isConnected ?? false;
 };
-
-// ============================================================================
-// AUTH API
-// ============================================================================
 
 export interface RegisterPayload {
   name: string;
   login: string;
   email?: string;
   password: string;
+  phoneNumber?: string;
 }
 
 export interface LoginPayload {
@@ -246,6 +199,7 @@ export interface AuthResponse {
     name: string;
     login: string;
     email: string | null;
+    phoneNumber?: string | null;
     avatar: string;
     isOnline: boolean;
   };
@@ -278,15 +232,12 @@ export const logout = async () => {
   await SecureStore.deleteItemAsync("token");
 };
 
-// ============================================================================
-// USER API
-// ============================================================================
-
 export interface UserProfile {
   id: string;
   name: string;
   login: string;
   email: string | null;
+  phoneNumber?: string | null;
   avatar: string;
   birthday?: string | null;
   bio: string;
@@ -300,6 +251,7 @@ export interface UpdateProfilePayload {
   email?: string;
   birthday?: string;
   bio?: string;
+  phoneNumber?: string;
 }
 
 export const getCurrentUser = async (): Promise<UserProfile> => {
@@ -372,10 +324,6 @@ export const saveFcmToken = async (
   console.log("[FCM] Token saved:", res.data.success);
   return res.data;
 };
-
-// ============================================================================
-// CHAT API
-// ============================================================================
 
 export interface Participant {
   id: string;
@@ -514,10 +462,6 @@ export const deleteChat = async (
   return res.data;
 };
 
-// ============================================================================
-// PASSWORD RESET API
-// ============================================================================
-
 export interface ForgotPasswordPayload {
   email: string;
 }
@@ -565,6 +509,7 @@ export interface VerifyEmailResponse {
     name: string;
     login: string;
     email: string | null;
+    phoneNumber?: string | null;
     avatar: string;
     isOnline: boolean;
     verified: boolean;
@@ -655,6 +600,7 @@ export interface ToggleFavoritePayload {
 export interface ToggleBlockPayload {
   contactId: string;
 }
+
 const getAuthHeaders = async () => {
   const token = await SecureStore.getItemAsync("token");
 
@@ -667,7 +613,6 @@ const getAuthHeaders = async () => {
     Authorization: `Bearer ${token}`,
   };
 };
-
 
 export const getContacts = async () => {
   try {
@@ -683,7 +628,6 @@ export const getContacts = async () => {
     console.log("[API] Response status:", response.status);
 
     if (response.status === 401) {
-      // Token invalid or expired
       await SecureStore.deleteItemAsync("token");
       throw new Error("Session expired. Please login again.");
     }
@@ -701,7 +645,6 @@ export const getContacts = async () => {
   }
 };
 
-// Sync contacts from phone
 export const syncContacts = async (phoneNumbers: string[]) => {
   try {
     const headers = await getAuthHeaders();
@@ -736,7 +679,6 @@ export const syncContacts = async (phoneNumbers: string[]) => {
   }
 };
 
-// Add contact
 export const addContact = async (contactId: string, nickname?: string) => {
   try {
     const headers = await getAuthHeaders();
@@ -767,7 +709,6 @@ export const addContact = async (contactId: string, nickname?: string) => {
   }
 };
 
-// Remove contact
 export const removeContact = async (contactId: string) => {
   try {
     const headers = await getAuthHeaders();
@@ -798,7 +739,6 @@ export const removeContact = async (contactId: string) => {
   }
 };
 
-// Toggle favorite
 export const toggleFavorite = async (contactId: string) => {
   try {
     const headers = await getAuthHeaders();
@@ -829,7 +769,6 @@ export const toggleFavorite = async (contactId: string) => {
   }
 };
 
-// Toggle block
 export const toggleBlock = async (contactId: string) => {
   try {
     const headers = await getAuthHeaders();

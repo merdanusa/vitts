@@ -10,7 +10,7 @@ import { RootState } from "@/store";
 import { setUser } from "@/store/userSlice";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { Facebook, Hash, Lock, Mail, User } from "lucide-react-native";
+import { Facebook, Hash, Lock, Mail, Phone, User } from "lucide-react-native";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,16 +26,29 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
-import AvatarUploadScreen from "../../components/avatar_upload";
+import AvatarUploadScreen from "../../components/screens/AvatarUpload";
 
 const { width } = Dimensions.get("window");
 
-type Step = { id: number; label: string; icon: any; field: string };
+type Step = {
+  id: number;
+  label: string;
+  icon: any;
+  field: string;
+  type?: string;
+};
 const STEPS: Step[] = [
-  { id: 1, label: "Email", icon: Mail, field: "email" },
-  { id: 2, label: "Username", icon: Hash, field: "username" },
-  { id: 3, label: "Full Name", icon: User, field: "name" },
-  { id: 4, label: "Password", icon: Lock, field: "password" },
+  { id: 1, label: "Email", icon: Mail, field: "email", type: "email" },
+  {
+    id: 2,
+    label: "Phone Number",
+    icon: Phone,
+    field: "phoneNumber",
+    type: "phone",
+  },
+  { id: 3, label: "Username", icon: Hash, field: "username" },
+  { id: 4, label: "Full Name", icon: User, field: "name" },
+  { id: 5, label: "Password", icon: Lock, field: "password" },
 ];
 
 type AuthMode = "login" | "signup" | "verify" | "forgot" | "reset" | "avatar";
@@ -52,10 +65,14 @@ export default function AuthScreen() {
 
   const [form, setForm] = useState({
     email: "",
+    phoneNumber: "",
     username: "",
     name: "",
     password: "",
   });
+
+  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
 
   const [verificationCode, setVerificationCode] = useState([
     "",
@@ -76,16 +93,20 @@ export default function AuthScreen() {
 
   const validate = () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+
     if (mode === "signup") {
       if (step === 1 && !emailRegex.test(form.email))
         return "Enter a valid email";
-      if (step === 2 && form.username.length < 3)
+      if (step === 2 && form.phoneNumber && !phoneRegex.test(form.phoneNumber))
+        return "Enter a valid phone number (e.g., +1234567890)";
+      if (step === 3 && form.username.length < 3)
         return "Username is too short";
-      if (step === 3 && !form.name.trim()) return "Enter your name";
-      if (step === 4 && form.password.length < 6)
+      if (step === 4 && !form.name.trim()) return "Enter your name";
+      if (step === 5 && form.password.length < 6)
         return "Password must be at least 6 characters";
     } else if (mode === "login") {
-      if (!form.email || !form.password) return "Please fill all fields";
+      if (!loginIdentifier || !loginPassword) return "Please fill all fields";
     } else if (mode === "forgot") {
       if (!emailRegex.test(forgotEmail)) return "Enter a valid email";
     } else if (mode === "reset") {
@@ -101,7 +122,7 @@ export default function AuthScreen() {
     if (err) return setError(err);
     setError("");
 
-    if (mode === "signup" && step < 4) {
+    if (mode === "signup" && step < 5) {
       setStep((s) => s + 1);
     } else {
       submit();
@@ -114,17 +135,23 @@ export default function AuthScreen() {
 
     try {
       if (mode === "signup") {
-        await register({
+        const payload: any = {
           name: form.name,
           login: form.username,
           email: form.email,
           password: form.password,
-        });
+        };
+
+        if (form.phoneNumber) {
+          payload.phoneNumber = form.phoneNumber;
+        }
+
+        await register(payload);
         setMode("verify");
       } else if (mode === "login") {
         const response = await login({
-          login: form.email,
-          password: form.password,
+          login: loginIdentifier,
+          password: loginPassword,
         });
 
         await SecureStore.setItemAsync("userToken", response.token);
@@ -575,17 +602,15 @@ export default function AuthScreen() {
             {mode === "login" ? (
               <>
                 <InputField
-                  placeholder="Email or username"
-                  value={form.email}
-                  onChangeText={(t: string) => setForm({ ...form, email: t })}
+                  placeholder="Email, phone, or username"
+                  value={loginIdentifier}
+                  onChangeText={setLoginIdentifier}
                   isDark={isDark}
                 />
                 <InputField
                   placeholder="Password"
-                  value={form.password}
-                  onChangeText={(t: string) =>
-                    setForm({ ...form, password: t })
-                  }
+                  value={loginPassword}
+                  onChangeText={setLoginPassword}
                   secure
                   isDark={isDark}
                 />
@@ -694,15 +719,38 @@ export default function AuthScreen() {
                   />
                 </View>
 
-                <InputField
-                  placeholder={STEPS[step - 1].label}
-                  value={(form as any)[STEPS[step - 1].field]}
-                  onChangeText={(t: string) =>
-                    setForm({ ...form, [STEPS[step - 1].field]: t })
-                  }
-                  secure={step >= 4}
-                  isDark={isDark}
-                />
+                {step === 2 ? (
+                  <View className="mb-3">
+                    <PhoneInputField
+                      value={form.phoneNumber}
+                      onChangeText={(t: string) =>
+                        setForm({ ...form, phoneNumber: t })
+                      }
+                      isDark={isDark}
+                    />
+                    <Text
+                      style={{ color: isDark ? "#71717a" : "#6b7280" }}
+                      className="text-xs mt-2 px-1"
+                    >
+                      Optional: Add your phone for contact sync
+                    </Text>
+                  </View>
+                ) : (
+                  <InputField
+                    placeholder={STEPS[step - 1].label}
+                    value={(form as any)[STEPS[step - 1].field]}
+                    onChangeText={(t: string) =>
+                      setForm({ ...form, [STEPS[step - 1].field]: t })
+                    }
+                    secure={step >= 5}
+                    isDark={isDark}
+                    keyboardType={
+                      STEPS[step - 1].type === "email"
+                        ? "email-address"
+                        : "default"
+                    }
+                  />
+                )}
 
                 {error ? (
                   <Text className="text-red-500 text-xs text-center mt-3">
@@ -720,7 +768,7 @@ export default function AuthScreen() {
                     <ActivityIndicator color="white" size="small" />
                   ) : (
                     <Text className="text-white font-bold text-sm">
-                      {step === 4 ? "Sign Up" : "Next"}
+                      {step === 5 ? "Sign Up" : "Next"}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -822,12 +870,14 @@ function InputField({
   onChangeText,
   secure,
   isDark,
+  keyboardType = "default",
 }: {
   placeholder: string;
   value: string;
   onChangeText: (text: string) => void;
   secure?: boolean;
   isDark: boolean;
+  keyboardType?: any;
 }) {
   return (
     <View
@@ -849,6 +899,47 @@ function InputField({
         onChangeText={onChangeText}
         secureTextEntry={secure}
         autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType={keyboardType}
+      />
+    </View>
+  );
+}
+
+function PhoneInputField({
+  value,
+  onChangeText,
+  isDark,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+  isDark: boolean;
+}) {
+  return (
+    <View
+      style={{
+        backgroundColor: isDark ? "#18181b" : "#f9fafb",
+        borderColor: isDark ? "#27272a" : "#d1d5db",
+      }}
+      className="h-11 px-4 rounded-lg border flex-row items-center"
+    >
+      <Text
+        style={{ color: isDark ? "#71717a" : "#6b7280" }}
+        className="text-sm mr-2"
+      >
+        +
+      </Text>
+      <TextInput
+        style={{
+          color: isDark ? "#ffffff" : "#000000",
+          paddingVertical: 0,
+        }}
+        className="flex-1 text-sm"
+        placeholder="1234567890"
+        placeholderTextColor="#9ca3af"
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType="phone-pad"
         autoCorrect={false}
       />
     </View>

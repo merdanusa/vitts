@@ -3,18 +3,11 @@ import { EditProfileModal } from "@/components/EditProfileModal";
 import FriendSkeleton from "@/components/FriendSkeleton";
 import { IOSAlert, showIOSAlert } from "@/components/IOSAlertDialog";
 import { ProfileHeader } from "@/components/ProfileHeader";
-import { SettingsModal } from "@/components/SettingsModal";
-import {
-  logout as apiLogout,
-  getCurrentUser,
-  updateProfile,
-  uploadAvatar,
-} from "@/services/api";
+import { getCurrentUser, updateProfile, uploadAvatar } from "@/services/api";
 import { RootState } from "@/store";
-import { setThemeMode } from "@/store/themeSlice";
 import {
-  logout as logoutAction,
   updateAvatar as updateAvatarAction,
+  updatePhoneNumber,
   updateUserProfile,
 } from "@/store/userSlice";
 import * as ImagePicker from "expo-image-picker";
@@ -39,13 +32,11 @@ export default function ProfileScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const isDark = useSelector((state: RootState) => state.theme.isDark);
-  const currentThemeMode = useSelector((state: RootState) => state.theme.mode);
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
-  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [alertConfig, setAlertConfig] = useState<any>(null);
@@ -74,22 +65,22 @@ export default function ProfileScreen() {
       setError(null);
       const data = await getCurrentUser();
       setUser(data);
+
+      dispatch(
+        updateUserProfile({
+          name: data.name,
+          email: data.email,
+          phoneNumber: data.phoneNumber,
+          bio: data.bio,
+          birthday: data.birthday,
+        }),
+      );
     } catch (err: any) {
       setError("Failed to load profile");
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleLogout = async () => {
-    await apiLogout();
-    dispatch(logoutAction());
-    router.replace("/auth");
-  };
-
-  const handleThemeChange = (mode: "light" | "dark" | "system") => {
-    dispatch(setThemeMode(mode));
   };
 
   const handlePickImage = async () => {
@@ -155,8 +146,16 @@ export default function ProfileScreen() {
         updateUserProfile({
           name: updatedUser.name,
           email: updatedUser.email,
+          phoneNumber: updatedUser.phoneNumber,
+          bio: updatedUser.bio,
+          birthday: updatedUser.birthday,
         }),
       );
+
+      if (profileData.phoneNumber !== user.phoneNumber) {
+        dispatch(updatePhoneNumber(updatedUser.phoneNumber));
+      }
+
       return updatedUser;
     } catch (err: any) {
       throw err;
@@ -168,6 +167,10 @@ export default function ProfileScreen() {
     setAlertConfig(
       showIOSAlert.simple("Copied", `@${user.login} copied to clipboard`),
     );
+  };
+
+  const handleOpenSettings = () => {
+    router.push("/settings");
   };
 
   if (loading) {
@@ -222,7 +225,7 @@ export default function ProfileScreen() {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => setSettingsModalVisible(true)}
+          onPress={handleOpenSettings}
           className="p-2"
           activeOpacity={0.7}
         >
@@ -310,15 +313,6 @@ export default function ProfileScreen() {
         scaleAnim={scaleAnim}
         onClose={() => setAvatarModalVisible(false)}
         onShowAlert={setAlertConfig}
-      />
-
-      <SettingsModal
-        visible={settingsModalVisible}
-        isDark={isDark}
-        currentThemeMode={currentThemeMode}
-        onClose={() => setSettingsModalVisible(false)}
-        onThemeChange={handleThemeChange}
-        onLogout={handleLogout}
       />
 
       <EditProfileModal

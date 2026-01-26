@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Animated, Text, TouchableOpacity, View } from "react-native";
 
 interface RecordingIndicatorProps {
@@ -12,6 +12,44 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({
   recordingAnimation,
   onStop,
 }) => {
+  const wave1 = useRef(new Animated.Value(0.3)).current;
+  const wave2 = useRef(new Animated.Value(0.5)).current;
+  const wave3 = useRef(new Animated.Value(0.7)).current;
+  const wave4 = useRef(new Animated.Value(0.5)).current;
+  const wave5 = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const createWaveAnimation = (animValue: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.timing(animValue, {
+            toValue: 1,
+            duration: 400,
+            delay,
+            useNativeDriver: true,
+          }),
+          Animated.timing(animValue, {
+            toValue: 0.3,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+    };
+
+    const animations = Animated.parallel([
+      createWaveAnimation(wave1, 0),
+      createWaveAnimation(wave2, 80),
+      createWaveAnimation(wave3, 160),
+      createWaveAnimation(wave4, 80),
+      createWaveAnimation(wave5, 0),
+    ]);
+
+    animations.start();
+
+    return () => animations.stop();
+  }, []);
+
   return (
     <View
       style={{
@@ -20,8 +58,14 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({
         paddingHorizontal: 16,
       }}
     >
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center">
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
           <Animated.View
             style={{
               width: 12,
@@ -32,26 +76,52 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({
               transform: [{ scale: recordingAnimation }],
             }}
           />
-          <Text
-            style={{ color: isDark ? "#ffffff" : "#000000" }}
-            className="text-base font-medium"
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginRight: 12,
+            }}
           >
-            Recording...
+            {[wave1, wave2, wave3, wave4, wave5].map((wave, index) => (
+              <Animated.View
+                key={index}
+                style={{
+                  width: 3,
+                  height: 20,
+                  borderRadius: 1.5,
+                  backgroundColor: "#ef4444",
+                  marginHorizontal: 1,
+                  transform: [{ scaleY: wave }],
+                }}
+              />
+            ))}
+          </View>
+          <Text
+            style={{
+              color: isDark ? "#ffffff" : "#000000",
+              fontSize: 16,
+              fontWeight: "500",
+            }}
+          >
+            Recording
           </Text>
         </View>
         <TouchableOpacity
-          activeOpacity={0.6}
+          activeOpacity={0.7}
           onPress={onStop}
           style={{
             backgroundColor: isDark ? "#262626" : "#e5e7eb",
-            paddingHorizontal: 16,
+            paddingHorizontal: 20,
             paddingVertical: 8,
             borderRadius: 20,
           }}
         >
           <Text
-            style={{ color: isDark ? "#ffffff" : "#000000" }}
-            className="font-medium"
+            style={{
+              color: isDark ? "#ffffff" : "#000000",
+              fontWeight: "600",
+            }}
           >
             Send
           </Text>

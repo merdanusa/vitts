@@ -1,8 +1,8 @@
 import { Message } from "@/services/api";
 import { formatTime } from "@/utils/helpers";
 import { File, Mic } from "lucide-react-native";
-import React from "react";
-import { Image, Text, View } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { Animated, Image, Text, View } from "react-native";
 
 interface MessageItemProps {
   message: Message;
@@ -11,12 +11,30 @@ interface MessageItemProps {
   isDark: boolean;
 }
 
+const isOnlyEmoji = (text: string): boolean => {
+  if (!text || text.length > 10) return false;
+  const emojiPattern = /^[\p{Emoji}\u200d]+$/u;
+  const trimmed = text.trim();
+  return emojiPattern.test(trimmed) && trimmed.length <= 4;
+};
+
 export const MessageItem: React.FC<MessageItemProps> = ({
   message,
   isMyMessage,
   showTime,
   isDark,
 }) => {
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      tension: 80,
+      friction: 7,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   const renderContent = () => {
     switch (message.type) {
       case "image":
@@ -30,22 +48,30 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 
       case "document":
         return (
-          <View className="flex-row items-center py-2">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingVertical: 4,
+            }}
+          >
             <View
               style={{
                 backgroundColor: isMyMessage
-                  ? "#ffffff20"
+                  ? "rgba(255, 255, 255, 0.2)"
                   : isDark
-                    ? "#ffffff20"
-                    : "#00000020",
-                width: 32,
-                height: 32,
-                borderRadius: 16,
+                    ? "rgba(255, 255, 255, 0.2)"
+                    : "rgba(0, 0, 0, 0.1)",
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 10,
               }}
-              className="items-center justify-center mr-2"
             >
               <File
-                size={16}
+                size={18}
                 color={isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000"}
               />
             </View>
@@ -53,6 +79,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
               style={{
                 color: isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000",
                 fontSize: 14,
+                flex: 1,
               }}
               numberOfLines={1}
             >
@@ -64,22 +91,30 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       case "voice":
       case "audio":
         return (
-          <View className="flex-row items-center py-2">
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingVertical: 4,
+            }}
+          >
             <View
               style={{
                 backgroundColor: isMyMessage
-                  ? "#ffffff20"
+                  ? "rgba(255, 255, 255, 0.2)"
                   : isDark
-                    ? "#ffffff20"
-                    : "#00000020",
-                width: 32,
-                height: 32,
-                borderRadius: 16,
+                    ? "rgba(255, 255, 255, 0.2)"
+                    : "rgba(0, 0, 0, 0.1)",
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                alignItems: "center",
+                justifyContent: "center",
+                marginRight: 10,
               }}
-              className="items-center justify-center mr-2"
             >
               <Mic
-                size={16}
+                size={18}
                 color={isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000"}
               />
             </View>
@@ -95,6 +130,17 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         );
 
       default:
+        if (isOnlyEmoji(message.content)) {
+          return (
+            <View style={{ paddingVertical: 8 }}>
+              <Text
+                style={{ fontSize: 72, lineHeight: 84, textAlign: "center" }}
+              >
+                {message.content}
+              </Text>
+            </View>
+          );
+        }
         return (
           <Text
             style={{
@@ -109,22 +155,31 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     }
   };
 
+  const isLargeEmoji = message.type === "text" && isOnlyEmoji(message.content);
+
   return (
-    <View className={`px-4 mb-2 ${isMyMessage ? "items-end" : "items-start"}`}>
+    <Animated.View
+      style={{
+        paddingHorizontal: 16,
+        marginBottom: 8,
+        alignItems: isMyMessage ? "flex-end" : "flex-start",
+        transform: [{ scale: scaleAnim }],
+      }}
+    >
       <View
         style={{
           backgroundColor:
-            message.type === "image"
+            message.type === "image" || isLargeEmoji
               ? "transparent"
               : isMyMessage
                 ? "#007AFF"
                 : isDark
                   ? "#262626"
                   : "#f3f4f6",
-          maxWidth: "80%",
+          maxWidth: isLargeEmoji ? undefined : "80%",
           borderRadius: 18,
-          paddingHorizontal: message.type === "image" ? 0 : 12,
-          paddingVertical: message.type === "image" ? 0 : 8,
+          paddingHorizontal: message.type === "image" || isLargeEmoji ? 0 : 12,
+          paddingVertical: message.type === "image" || isLargeEmoji ? 0 : 8,
           overflow: "hidden",
         }}
       >
@@ -141,6 +196,6 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           {formatTime(message.time)}
         </Text>
       )}
-    </View>
+    </Animated.View>
   );
 };

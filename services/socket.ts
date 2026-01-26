@@ -1,5 +1,5 @@
 import { ENV } from "@/configs/env.config";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { io, Socket } from "socket.io-client";
 
 const SOCKET_URL = (
@@ -17,7 +17,7 @@ class SocketService {
     }
 
     try {
-      const token = await AsyncStorage.getItem("token");
+      const token = await SecureStore.getItem("token");
       if (!token) {
         console.error("[SOCKET] No token found");
         return;

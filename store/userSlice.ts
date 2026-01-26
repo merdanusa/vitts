@@ -6,10 +6,13 @@ interface UserState {
   name: string | null;
   login: string | null;
   email: string | null;
+  phoneNumber: string | null;
   avatar: string | null;
   isOnline: boolean;
   verified: boolean;
   isAuthenticated: boolean;
+  bio: string | null;
+  birthday: string | null;
 }
 
 const initialState: UserState = {
@@ -17,10 +20,13 @@ const initialState: UserState = {
   name: null,
   login: null,
   email: null,
+  phoneNumber: null,
   avatar: null,
   isOnline: false,
   verified: false,
   isAuthenticated: false,
+  bio: null,
+  birthday: null,
 };
 
 const userSlice = createSlice({
@@ -28,33 +34,70 @@ const userSlice = createSlice({
   initialState,
   reducers: {
     setUser: (state, action: PayloadAction<any>) => {
-      const { id, name, login, email, avatar, isOnline, verified } =
-        action.payload;
-      state.id = id;
+      const {
+        id,
+        _id,
+        name,
+        login,
+        email,
+        phoneNumber,
+        avatar,
+        isOnline,
+        verified,
+        bio,
+        birthday,
+      } = action.payload;
+
+      const userId = id || _id;
+
+      console.log("[USER SLICE] setUser called with payload:", action.payload);
+      console.log("[USER SLICE] Extracted userId:", userId);
+
+      state.id = userId;
       state.name = name;
       state.login = login;
       state.email = email;
+      state.phoneNumber = phoneNumber || null;
       state.avatar = avatar;
       state.isOnline = isOnline;
       state.isAuthenticated = true;
       state.verified = !!verified;
-      console.log("User state updated:", state);
+      state.bio = bio || null;
+      state.birthday = birthday || null;
+
+      console.log("[USER SLICE] User state updated:", {
+        id: state.id,
+        name: state.name,
+        login: state.login,
+        isAuthenticated: state.isAuthenticated,
+      });
     },
     updateUserProfile: (state, action: PayloadAction<Partial<UserState>>) => {
       Object.assign(state, action.payload);
-      console.log("User profile updated:", action.payload);
+      console.log("[USER SLICE] User profile updated:", action.payload);
     },
     updateAvatar: (state, action: PayloadAction<string>) => {
       state.avatar = action.payload;
-      console.log("Avatar updated:", action.payload);
+      console.log("[USER SLICE] Avatar updated:", action.payload);
+    },
+    updatePhoneNumber: (state, action: PayloadAction<string | null>) => {
+      state.phoneNumber = action.payload;
+      console.log("[USER SLICE] Phone number updated:", action.payload);
     },
     logout: () => {
+      console.log("[USER SLICE] Logging out - clearing user state");
       SecureStore.deleteItemAsync("token");
       return initialState;
     },
   },
 });
 
-export const { setUser, updateUserProfile, updateAvatar, logout } =
-  userSlice.actions;
+export const {
+  setUser,
+  updateUserProfile,
+  updateAvatar,
+  updatePhoneNumber,
+  logout,
+} = userSlice.actions;
+
 export default userSlice.reducer;

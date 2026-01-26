@@ -1,10 +1,12 @@
+import { DebugUserInfo } from "@/components/screens/DebugUserInfo";
 import { ChatListItem, getCurrentUser, getMyChats } from "@/services/api";
 import { RootState } from "@/store";
 import { useRouter } from "expo-router";
 import { CheckCheck, Search, UserPlus } from "lucide-react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Image,
   Platform,
@@ -33,6 +35,9 @@ const ChatsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [showDebug, setShowDebug] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const appState = useRef(AppState.currentState);
 
   const loadChats = async () => {
     try {
@@ -52,6 +57,27 @@ const ChatsScreen = () => {
 
   useEffect(() => {
     loadChats();
+
+    intervalRef.current = setInterval(() => {
+      loadChats();
+    }, 5000);
+
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        loadChats();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      subscription.remove();
+    };
   }, []);
 
   const onRefresh = useCallback(() => {
@@ -315,6 +341,28 @@ const ChatsScreen = () => {
       className="flex-1"
     >
       <View className="flex-1">
+        {__DEV__ && (
+          <TouchableOpacity
+            onPress={() => setShowDebug(!showDebug)}
+            style={{
+              padding: 16,
+              backgroundColor: showDebug ? "#ef4444" : "#22c55e",
+            }}
+          >
+            <Text
+              style={{
+                color: "#ffffff",
+                textAlign: "center",
+                fontWeight: "bold",
+              }}
+            >
+              {showDebug ? "Hide Debug" : "Show Debug Info"}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {showDebug && <DebugUserInfo />}
+
         <View
           style={{
             borderBottomWidth: 0.5,
@@ -397,7 +445,6 @@ const ChatsScreen = () => {
           />
         )}
 
-        {/* Floating Action Button */}
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={handleContactsPress}
