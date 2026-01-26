@@ -1,4 +1,5 @@
 import { ENV } from "@/configs/env.config";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import axios, {
   AxiosError,
@@ -654,93 +655,207 @@ export interface ToggleFavoritePayload {
 export interface ToggleBlockPayload {
   contactId: string;
 }
+const getAuthHeaders = async () => {
+  const token = await SecureStore.getItemAsync("token");
 
-// Get all my contacts
-export const getMyContacts = async (): Promise<Contact[]> => {
-  console.log("[CONTACTS] Fetching my contacts");
-  const res = await api.get<{ contacts: Contact[] }>("/api/contacts");
-  return res.data.contacts;
+  if (!token) {
+    throw new Error("No authentication token found");
+  }
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
 };
 
-// Sync device contacts with backend
-export const syncContacts = async (
-  phoneNumbers: string[],
-): Promise<Contact[]> => {
-  console.log("[CONTACTS] Syncing", phoneNumbers.length, "phone numbers");
-  const res = await api.post<SyncContactsResponse>("/api/contacts/sync", {
-    phoneNumbers,
-  });
-  console.log("[CONTACTS] Found", res.data.users.length, "registered users");
-  return res.data.users;
+
+export const getContacts = async () => {
+  try {
+    const headers = await getAuthHeaders();
+
+    console.log("[API] GET /contacts");
+
+    const response = await fetch(`${API_BASE_URL}/api/contacts`, {
+      method: "GET",
+      headers,
+    });
+
+    console.log("[API] Response status:", response.status);
+
+    if (response.status === 401) {
+      // Token invalid or expired
+      await SecureStore.deleteItemAsync("token");
+      throw new Error("Session expired. Please login again.");
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to get contacts");
+    }
+
+    const data = await response.json();
+    return data.contacts || [];
+  } catch (error) {
+    console.error("[API] getContacts error:", error);
+    throw error;
+  }
+};
+
+// Sync contacts from phone
+export const syncContacts = async (phoneNumbers: string[]) => {
+  try {
+    const headers = await getAuthHeaders();
+
+    console.log("[API] POST /contacts/sync");
+    console.log("[API] Syncing", phoneNumbers.length, "phone numbers");
+
+    const response = await fetch(`${API_BASE_URL}/api/contacts/sync`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ phoneNumbers }),
+    });
+
+    console.log("[API] Response status:", response.status);
+
+    if (response.status === 401) {
+      await SecureStore.deleteItemAsync("token");
+      throw new Error("Session expired. Please login again.");
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to sync contacts");
+    }
+
+    const data = await response.json();
+    console.log("[API] Synced users:", data.users?.length || 0);
+    return data.users || [];
+  } catch (error) {
+    console.error("[API] syncContacts error:", error);
+    throw error;
+  }
 };
 
 // Add contact
-export const addContact = async (
-  contactId: string,
-  nickname?: string,
-): Promise<{ success: boolean }> => {
-  console.log("[CONTACTS] Adding contact:", contactId);
-  const res = await api.post<{ success: boolean }>("/api/contacts/add", {
-    contactId,
-    username: nickname,
-  });
-  console.log("[CONTACTS] Contact added successfully");
-  return res.data;
+export const addContact = async (contactId: string, nickname?: string) => {
+  try {
+    const headers = await getAuthHeaders();
+
+    console.log("[API] POST /contacts/add");
+
+    const response = await fetch(`${API_BASE_URL}/api/contacts/add`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ contactId, nickname }),
+    });
+
+    if (response.status === 401) {
+      await SecureStore.deleteItemAsync("token");
+      throw new Error("Session expired. Please login again.");
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to add contact");
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("[API] addContact error:", error);
+    throw error;
+  }
 };
 
 // Remove contact
-export const removeContact = async (
-  contactId: string,
-): Promise<{ success: boolean }> => {
-  console.log("[CONTACTS] Removing contact:", contactId);
-  const res = await api.post<{ success: boolean }>("/api/contacts/remove", {
-    contactId,
-  });
-  console.log("[CONTACTS] Contact removed successfully");
-  return res.data;
+export const removeContact = async (contactId: string) => {
+  try {
+    const headers = await getAuthHeaders();
+
+    console.log("[API] POST /contacts/remove");
+
+    const response = await fetch(`${API_BASE_URL}/api/contacts/remove`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ contactId }),
+    });
+
+    if (response.status === 401) {
+      await SecureStore.deleteItemAsync("token");
+      throw new Error("Session expired. Please login again.");
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to remove contact");
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("[API] removeContact error:", error);
+    throw error;
+  }
 };
 
 // Toggle favorite
-export const toggleFavorite = async (
-  contactId: string,
-): Promise<{ success: boolean; isFavorite: boolean }> => {
-  console.log("[CONTACTS] Toggling favorite:", contactId);
-  const res = await api.post<{ success: boolean; isFavorite: boolean }>(
-    "/api/contacts/favorite",
-    { contactId },
-  );
-  console.log(
-    "[CONTACTS] Favorite toggled:",
-    res.data.isFavorite ? "ON" : "OFF",
-  );
-  return res.data;
+export const toggleFavorite = async (contactId: string) => {
+  try {
+    const headers = await getAuthHeaders();
+
+    console.log("[API] POST /contacts/favorite");
+
+    const response = await fetch(`${API_BASE_URL}/api/contacts/favorite`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ contactId }),
+    });
+
+    if (response.status === 401) {
+      await SecureStore.deleteItemAsync("token");
+      throw new Error("Session expired. Please login again.");
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to toggle favorite");
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("[API] toggleFavorite error:", error);
+    throw error;
+  }
 };
 
 // Toggle block
-export const toggleBlock = async (
-  contactId: string,
-): Promise<{ success: boolean; isBlocked: boolean }> => {
-  console.log("[CONTACTS] Toggling block:", contactId);
-  const res = await api.post<{ success: boolean; isBlocked: boolean }>(
-    "/api/contacts/block",
-    { contactId },
-  );
-  console.log("[CONTACTS] Block toggled:", res.data.isBlocked ? "ON" : "OFF");
-  return res.data;
-};
+export const toggleBlock = async (contactId: string) => {
+  try {
+    const headers = await getAuthHeaders();
 
-// Invite contact via SMS (optional)
-export const inviteContact = async (
-  phoneNumber: string,
-  message: string,
-): Promise<{ success: boolean }> => {
-  console.log("[CONTACTS] Sending invitation to:", phoneNumber);
-  const res = await api.post<{ success: boolean }>("/api/contacts/invite", {
-    phoneNumber,
-    message,
-  });
-  return res.data;
-};
+    console.log("[API] POST /contacts/block");
 
-export default api;
-  
+    const response = await fetch(`${API_BASE_URL}/api/contacts/block`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ contactId }),
+    });
+
+    if (response.status === 401) {
+      await SecureStore.deleteItemAsync("token");
+      throw new Error("Session expired. Please login again.");
+    }
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Failed to toggle block");
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("[API] toggleBlock error:", error);
+    throw error;
+  }
+};

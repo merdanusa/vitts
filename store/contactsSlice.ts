@@ -1,12 +1,7 @@
-// store/contactsSlice.ts
-import api from "@/services/api";
+import { api } from "@/services/api";
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import * as Contacts from "expo-contacts";
 import { createSelector } from "reselect";
-
-// ============================================================================
-// TYPES
-// ============================================================================
 
 export interface DeviceContact {
   id: string;
@@ -59,10 +54,6 @@ export interface ContactsState {
   // UI states
   error: string | null;
 }
-
-// ============================================================================
-// INITIAL STATE
-// ============================================================================
 
 const initialState: ContactsState = {
   deviceContacts: [],
@@ -270,10 +261,6 @@ export const performFullSync = createAsyncThunk(
   },
 );
 
-// ============================================================================
-// SLICE
-// ============================================================================
-
 const contactsSlice = createSlice({
   name: "contacts",
   initialState,
@@ -419,10 +406,6 @@ const contactsSlice = createSlice({
       });
   },
 });
-
-// ============================================================================
-// SELECTORS
-// ============================================================================
 
 export const selectAllContacts = (state: { contacts: ContactsState }) =>
   state.contacts.myContacts;
