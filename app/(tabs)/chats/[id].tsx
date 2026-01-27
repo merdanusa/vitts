@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -27,6 +28,7 @@ import { MessagesList } from "@/components/chat/MessagesList";
 import { RecordingIndicator } from "@/components/chat/RecordingIndicator";
 import { UploadIndicator } from "@/components/chat/UploadIndicator";
 
+import { ImageBackground } from "@/components/ui/image-background";
 import { useChatData } from "@/hooks/chat/useChatData";
 import { useRecording } from "@/hooks/chat/useRecording";
 import { useTypingIndicator } from "@/hooks/chat/useTypingIndicator";
@@ -44,17 +46,15 @@ const ChatDetailScreen = () => {
   const [uploading, setUploading] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
-  // Refs
   const flatListRef = useRef<FlatList>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Custom hooks
   const { messages, chatData, currentUserId, loading, setMessages, loadChat } =
     useChatData(id);
   const { isRecording, startRecording, stopRecording, recordingAnimation } =
     useRecording();
   const { isTyping, handleTyping, handleStopTyping } = useTypingIndicator();
 
-  // Keyboard listeners
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
@@ -95,7 +95,6 @@ const ChatDetailScreen = () => {
           return prev;
         }
 
-        // Also remove any very similar optimistic message (same content + close time)
         const filtered = prev.filter((msg) => {
           if (msg.id.startsWith("temp-") || msg.id.startsWith("optimistic-")) {
             const timeDiff = Math.abs(
@@ -145,6 +144,10 @@ const ChatDetailScreen = () => {
       socketService.off("userStopTyping");
     };
   }, [id, currentUserId]);
+
+  const bgImage = isDark
+    ? require("@/assets/bg/default-dark.png")
+    : require("@/assets/bg/default-light.png");
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -241,6 +244,24 @@ const ChatDetailScreen = () => {
     }
   };
 
+  const handleVoiceCall = () => {
+    Alert.alert("Voice Call", "Voice calling feature coming soon!");
+  };
+
+  const handleVideoCall = () => {
+    Alert.alert("Video Call", "Video calling feature coming soon!");
+  };
+
+  const handleMoreOptions = () => {
+    Alert.alert("More Options", "Additional options coming soon!");
+  };
+
+  const handleProfilePress = () => {
+    if (participant?.id) {
+      router.push(`/discover/${participant.id}`);
+    }
+  };
+
   const participant = chatData?.participants?.find(
     (p: any) => p.id !== currentUserId,
   );
@@ -255,66 +276,98 @@ const ChatDetailScreen = () => {
       className="flex-1"
       edges={["top"]}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-        keyboardVerticalOffset={0}
-      >
-        <View className="flex-1">
-          <ChatHeader
-            isDark={isDark}
-            participant={participant}
-            isTyping={isTyping}
-            onBack={() => router.back()}
-          />
+      <ImageBackground source={bgImage} className="flex-1" resizeMode="cover">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+          className="flex-1"
+        >
+          <View className="flex-1 relative">
+            <View className="flex-1">
+              <MessagesList
+                ref={flatListRef}
+                messages={messages}
+                currentUserId={currentUserId}
+                isDark={isDark}
+                contentContainerStyle={{
+                  paddingTop: 100,
+                  paddingBottom: 16,
+                }}
+              />
+            </View>
 
-          <MessagesList
-            ref={flatListRef}
-            messages={messages}
-            currentUserId={currentUserId}
-            isDark={isDark}
-          />
+            <View className="absolute top-0 left-0 right-0 h-28 pointer-events-none z-[5]">
+              <View
+                className={`absolute inset-0 ${
+                  isDark
+                    ? "bg-gradient-to-b from-transparent via-black/40 to-black/90"
+                    : "bg-gradient-to-b from-transparent via-white/40 to-white/90"
+                }`}
+              />
+            </View>
 
-          {uploading && <UploadIndicator isDark={isDark} />}
+            {/* Header - Positioned Absolutely on Top */}
+            <View className="absolute top-0 left-0 right-0 z-10">
+              <ChatHeader
+                isDark={isDark}
+                participant={participant}
+                isTyping={isTyping}
+                initialIsOnline={participant?.isOnline}
+                onBack={() => router.back()}
+                onProfilePress={handleProfilePress}
+                onVoiceCall={handleVoiceCall}
+                onVideoCall={handleVideoCall}
+                onMoreOptions={handleMoreOptions}
+              />
+            </View>
 
-          {isRecording && (
-            <RecordingIndicator
+            {/* Upload Indicator */}
+            {uploading && <UploadIndicator isDark={isDark} />}
+
+            {/* Recording Indicator */}
+            {isRecording && (
+              <RecordingIndicator
+                isDark={isDark}
+                recordingAnimation={recordingAnimation}
+                onStop={stopRecording}
+              />
+            )}
+
+            {/* Chat Input */}
+            <ChatInput
               isDark={isDark}
-              recordingAnimation={recordingAnimation}
-              onStop={stopRecording}
+              keyboardVisible={keyboardVisible}
+              inputText={inputText}
+              uploading={uploading}
+              isRecording={isRecording}
+              onChangeText={handleInputChange}
+              onSend={handleSend}
+              onAttach={() => setShowAttachMenu(true)}
+              onEmoji={() => setShowEmojiPicker(true)}
+              onStartRecording={startRecording}
+              onStopRecording={stopRecording}
             />
-          )}
+          </View>
 
-          <ChatInput
+          {/* Emoji Picker Modal */}
+          <EmojiPickerModal
+            visible={showEmojiPicker}
             isDark={isDark}
-            inputText={inputText}
-            uploading={uploading}
-            isRecording={isRecording}
-            onChangeText={handleInputChange}
-            onSend={handleSend}
-            onAttach={() => setShowAttachMenu(true)}
-            onEmoji={() => setShowEmojiPicker(true)}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
+            onClose={() => setShowEmojiPicker(false)}
+            onSelect={handleEmojiSelect}
           />
-        </View>
 
-        <EmojiPickerModal
-          visible={showEmojiPicker}
-          isDark={isDark}
-          onClose={() => setShowEmojiPicker(false)}
-          onSelect={handleEmojiSelect}
-        />
-
-        <AttachmentModal
-          visible={showAttachMenu}
-          isDark={isDark}
-          onClose={() => setShowAttachMenu(false)}
-          onImagePick={handleImagePick}
-          onCameraPick={handleCameraPick}
-          onDocumentPick={handleDocumentPick}
-        />
-      </KeyboardAvoidingView>
+          {/* Attachment Modal */}
+          <AttachmentModal
+            visible={showAttachMenu}
+            isDark={isDark}
+            onClose={() => setShowAttachMenu(false)}
+            onImagePick={handleImagePick}
+            onCameraPick={handleCameraPick}
+            onDocumentPick={handleDocumentPick}
+          />
+        </KeyboardAvoidingView>
+      </ImageBackground>
     </SafeAreaView>
   );
 };

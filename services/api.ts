@@ -306,6 +306,8 @@ export const searchUsers = async (query: string): Promise<SearchUser[]> => {
   const res = await api.get<SearchUser[]>("/api/users/search", {
     params: { q: query.trim() },
   });
+  console.log(res.data);
+
   return res.data;
 };
 
@@ -797,4 +799,64 @@ export const toggleBlock = async (contactId: string) => {
     console.error("[API] toggleBlock error:", error);
     throw error;
   }
+};
+
+export interface UserStatus {
+  userId: string;
+  name: string;
+  avatar: string;
+  isOnline: boolean;
+  lastSeen: string | null;
+}
+
+export interface BulkStatusResponse {
+  statuses: UserStatus[];
+}
+
+/**
+ * Get a single user's online status and last seen
+ */
+export const getUserStatus = async (userId: string): Promise<UserStatus> => {
+  console.log("[API] Getting status for user:", userId);
+  const res = await api.get<UserStatus>(`/api/users/${userId}/status`);
+  return res.data;
+};
+
+/**
+ * Get multiple users' statuses at once
+ */
+export const getBulkUserStatuses = async (
+  userIds: string[],
+): Promise<UserStatus[]> => {
+  console.log("[API] Getting bulk statuses for", userIds.length, "users");
+  const res = await api.post<BulkStatusResponse>("/api/users/status/bulk", {
+    userIds,
+  });
+  return res.data.statuses;
+};
+
+/**
+ * Update last seen privacy setting
+ */
+export const updateLastSeenPrivacy = async (
+  setting: "everyone" | "contacts" | "nobody",
+): Promise<{ message: string; privacySettings: any }> => {
+  console.log("[API] Updating last seen privacy to:", setting);
+  const res = await api.patch("/api/users/me/privacy", {
+    lastSeen: setting,
+  });
+  return res.data;
+};
+
+/**
+ * Update online status visibility
+ */
+export const updateOnlineStatusVisibility = async (
+  show: boolean,
+): Promise<{ message: string; privacySettings: any }> => {
+  console.log("[API] Updating online status visibility to:", show);
+  const res = await api.patch("/api/users/me/privacy", {
+    onlineStatus: show,
+  });
+  return res.data;
 };
