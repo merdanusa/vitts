@@ -9,6 +9,7 @@ import {
   FlatList,
   Image,
   Platform,
+  Pressable,
   Text,
   TextInput,
   TouchableOpacity,
@@ -101,46 +102,52 @@ const DiscoverScreen = () => {
           className="px-4 py-3"
         >
           <View className="flex-row items-center">
-            <View className="mr-3 relative">
-              {hasAvatar ? (
-                <Image
-                  source={{ uri: item.avatar }}
-                  style={{ width: 48, height: 48, borderRadius: 24 }}
-                />
-              ) : (
-                <View
-                  style={{
-                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
-                  }}
-                  className="items-center justify-center"
-                >
-                  <Text
-                    style={{ color: isDark ? "#a1a1aa" : "#737373" }}
-                    className="text-lg font-medium"
+            <Pressable
+              onPress={() => {
+                router.push(`/discover/${item.id}`);
+              }}
+            >
+              <View className="mr-3 relative">
+                {hasAvatar ? (
+                  <Image
+                    source={{ uri: item.avatar }}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                      width: 48,
+                      height: 48,
+                      borderRadius: 24,
+                    }}
+                    className="items-center justify-center"
                   >
-                    {initials}
-                  </Text>
-                </View>
-              )}
-              {item.isOnline && (
-                <View
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    right: 0,
-                    width: 12,
-                    height: 12,
-                    backgroundColor: "#22c55e",
-                    borderRadius: 6,
-                    borderWidth: 2,
-                    borderColor: isDark ? "#000000" : "#ffffff",
-                  }}
-                />
-              )}
-            </View>
+                    <Text
+                      style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+                      className="text-lg font-medium"
+                    >
+                      {initials}
+                    </Text>
+                  </View>
+                )}
+                {item.isOnline && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      right: 0,
+                      width: 12,
+                      height: 12,
+                      backgroundColor: "#22c55e",
+                      borderRadius: 6,
+                      borderWidth: 2,
+                      borderColor: isDark ? "#000000" : "#ffffff",
+                    }}
+                  />
+                )}
+              </View>
+            </Pressable>
 
             <View className="flex-1 mr-3">
               <Text

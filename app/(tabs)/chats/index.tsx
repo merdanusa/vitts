@@ -10,6 +10,7 @@ import {
   FlatList,
   Image,
   Platform,
+  Pressable,
   RefreshControl,
   Text,
   TextInput,
@@ -213,46 +214,52 @@ const ChatsScreen = () => {
           className="px-4 py-3"
         >
           <View className="flex-row items-center">
-            <View className="mr-3 relative">
-              {hasAvatar ? (
-                <Image
-                  source={{ uri: item.participant.avatar }}
-                  style={{ width: 56, height: 56, borderRadius: 28 }}
-                />
-              ) : (
-                <View
-                  style={{
-                    backgroundColor: isDark ? "#262626" : "#f3f4f6",
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
-                  }}
-                  className="items-center justify-center"
-                >
-                  <Text
-                    style={{ color: isDark ? "#a1a1aa" : "#737373" }}
-                    className="text-xl font-medium"
+            <Pressable
+              onPress={() => {
+                router.push(`/discover/${item.participant.id}`);
+              }}
+            >
+              <View className="mr-3 relative">
+                {hasAvatar ? (
+                  <Image
+                    source={{ uri: item.participant.avatar }}
+                    style={{ width: 56, height: 56, borderRadius: 28 }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      backgroundColor: isDark ? "#262626" : "#f3f4f6",
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                    }}
+                    className="items-center justify-center"
                   >
-                    {initials}
-                  </Text>
-                </View>
-              )}
-              {item.participant.isOnline && (
-                <View
-                  style={{
-                    position: "absolute",
-                    bottom: 0,
-                    right: 0,
-                    width: 14,
-                    height: 14,
-                    backgroundColor: "#22c55e",
-                    borderRadius: 7,
-                    borderWidth: 2,
-                    borderColor: isDark ? "#000000" : "#ffffff",
-                  }}
-                />
-              )}
-            </View>
+                    <Text
+                      style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+                      className="text-xl font-medium"
+                    >
+                      {initials}
+                    </Text>
+                  </View>
+                )}
+                {item.participant.isOnline && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: 0,
+                      right: 0,
+                      width: 14,
+                      height: 14,
+                      backgroundColor: "#22c55e",
+                      borderRadius: 7,
+                      borderWidth: 2,
+                      borderColor: isDark ? "#000000" : "#ffffff",
+                    }}
+                  />
+                )}
+              </View>
+            </Pressable>
 
             <View className="flex-1">
               <View className="flex-row justify-between items-center mb-1">
