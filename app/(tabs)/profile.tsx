@@ -1,9 +1,17 @@
 import { AvatarModal } from "@/components/AvatarModal";
 import { EditProfileModal } from "@/components/EditProfileModal";
-import FriendSkeleton from "@/components/FriendSkeleton";
 import { IOSAlert, showIOSAlert } from "@/components/IOSAlertDialog";
 import { ProfileHeader } from "@/components/ProfileHeader";
-import { getCurrentUser, updateProfile, uploadAvatar } from "@/services/api";
+import { WillCard } from "@/components/WillCard";
+import {
+  getCurrentUser,
+  getWillsByAuthor,
+  likeWill,
+  unlikeWill,
+  updateProfile,
+  uploadAvatar,
+  Will,
+} from "@/services/api";
 import { RootState } from "@/store";
 import {
   updateAvatar as updateAvatarAction,
@@ -12,13 +20,14 @@ import {
 } from "@/store/userSlice";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { Radio, Settings } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import { Plus, Settings } from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   Clipboard,
-  ScrollView,
+  FlatList,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View,
@@ -26,7 +35,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
 
-const AVATAR_SIZE = 120;
+const AVATAR_SIZE = 80;
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -34,12 +43,15 @@ export default function ProfileScreen() {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
 
   const [user, setUser] = useState<any>(null);
+  const [wills, setWills] = useState<Will[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [alertConfig, setAlertConfig] = useState<any>(null);
+  const [likedWills, setLikedWills] = useState<Set<string>>(new Set());
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
@@ -75,13 +87,22 @@ export default function ProfileScreen() {
           birthday: data.birthday,
         }),
       );
+
+      const userWillsResponse = await getWillsByAuthor(data.id);
+      setWills(userWillsResponse.data);
     } catch (err: any) {
       setError("Failed to load profile");
       console.error(err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchProfile();
+  }, []);
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -173,16 +194,158 @@ export default function ProfileScreen() {
     router.push("/settings");
   };
 
-  if (loading) {
+  const handleLike = async (willId: string) => {
+    const isLiked = likedWills.has(willId);
+
+    setLikedWills((prev) => {
+      const newSet = new Set(prev);
+      if (isLiked) {
+        newSet.delete(willId);
+      } else {
+        newSet.add(willId);
+      }
+      return newSet;
+    });
+
+    setWills((prev) =>
+      prev.map((will) =>
+        will.id === willId
+          ? {
+              ...will,
+              likesCount: isLiked ? will.likesCount - 1 : will.likesCount + 1,
+            }
+          : will,
+      ),
+    );
+
+    try {
+      if (isLiked) {
+        await unlikeWill(willId);
+      } else {
+        await likeWill(willId);
+      }
+    } catch (error) {
+      setLikedWills((prev) => {
+        const newSet = new Set(prev);
+        if (isLiked) {
+          newSet.add(willId);
+        } else {
+          newSet.delete(willId);
+        }
+        return newSet;
+      });
+
+      setWills((prev) =>
+        prev.map((will) =>
+          will.id === willId
+            ? {
+                ...will,
+                likesCount: isLiked ? will.likesCount + 1 : will.likesCount - 1,
+              }
+            : will,
+        ),
+      );
+    }
+  };
+
+  const handleEditWill = (willId: string) => {
+    router.push(`/wills/manage?id=${willId}`);
+  };
+
+  const renderWillItem = ({ item }: { item: Will }) => (
+    <WillCard
+      item={item}
+      isDark={isDark}
+      isLiked={likedWills.has(item.id)}
+      onLike={handleLike}
+      showEdit={true}
+      onEdit={handleEditWill}
+      hideAuthor={true}
+    />
+  );
+
+  const renderHeader = () => (
+    <View>
+      <View
+        style={{
+          borderBottomWidth: 0.5,
+          borderBottomColor: isDark ? "#2c2c2e" : "#e5e7eb",
+          backgroundColor: isDark ? "#000000" : "#ffffff",
+        }}
+        className="flex-row items-center justify-between px-4 py-3"
+      >
+        <View className="flex-1">
+          <Text
+            style={{ color: isDark ? "#ffffff" : "#000000" }}
+            className="text-xl font-bold"
+          >
+            {user?.login}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={handleOpenSettings}
+          className="p-2"
+          activeOpacity={0.7}
+        >
+          <Settings size={22} color={isDark ? "#ffffff" : "#000000"} />
+        </TouchableOpacity>
+      </View>
+
+      <View className="px-4 py-4">
+        <ProfileHeader
+          user={user}
+          isDark={isDark}
+          uploadingAvatar={uploadingAvatar}
+          onAvatarLongPress={() => setAvatarModalVisible(true)}
+          onEditPress={() => setEditModalVisible(true)}
+          onSharePress={handleShare}
+          avatarSize={AVATAR_SIZE}
+        />
+      </View>
+
+      <View
+        style={{
+          borderTopWidth: 0.5,
+          borderBottomWidth: 0.5,
+          borderColor: isDark ? "#2c2c2e" : "#e5e7eb",
+          backgroundColor: isDark ? "#000000" : "#ffffff",
+        }}
+        className="px-4 py-3"
+      >
+        <Text
+          style={{ color: isDark ? "#ffffff" : "#000000" }}
+          className="text-base font-semibold"
+        >
+          Wills
+        </Text>
+      </View>
+    </View>
+  );
+
+  const renderEmpty = () => (
+    <View className="items-center justify-center py-20 px-4">
+      <Text
+        style={{ color: isDark ? "#8e8e93" : "#9ca3af" }}
+        className="text-center text-base mb-2"
+      >
+        No wills yet
+      </Text>
+      <Text
+        style={{ color: isDark ? "#8e8e93" : "#9ca3af" }}
+        className="text-center text-sm"
+      >
+        Share your first will
+      </Text>
+    </View>
+  );
+
+  if (loading && !user) {
     return (
       <SafeAreaView
         style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
         className="flex-1 justify-center items-center"
       >
-        <ActivityIndicator
-          size="small"
-          color={isDark ? "#ffffff" : "#000000"}
-        />
+        <ActivityIndicator size="small" color="#007AFF" />
       </SafeAreaView>
     );
   }
@@ -208,103 +371,39 @@ export default function ProfileScreen() {
       style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
       className="flex-1"
     >
-      <View
+      <FlatList
+        data={wills}
+        renderItem={renderWillItem}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={renderEmpty}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      />
+
+      <TouchableOpacity
+        onPress={() => router.push("/wills/manage")}
         style={{
-          borderBottomWidth: 0.5,
-          borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
-          backgroundColor: isDark ? "#000000" : "#ffffff",
+          position: "absolute",
+          bottom: 24,
+          right: 24,
+          width: 56,
+          height: 56,
+          backgroundColor: "#007AFF",
+          borderRadius: 28,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
+          elevation: 5,
         }}
-        className="flex-row items-center justify-between px-4 py-3"
+        className="items-center justify-center"
+        activeOpacity={0.8}
       >
-        <View className="flex-1">
-          <Text
-            style={{ color: isDark ? "#ffffff" : "#000000" }}
-            className="text-xl font-bold"
-          >
-            {user.login}
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={handleOpenSettings}
-          className="p-2"
-          activeOpacity={0.7}
-        >
-          <Settings size={22} color={isDark ? "#ffffff" : "#000000"} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View className="px-4 py-6">
-          <ProfileHeader
-            user={user}
-            isDark={isDark}
-            uploadingAvatar={uploadingAvatar}
-            onAvatarLongPress={() => setAvatarModalVisible(true)}
-            onEditPress={() => setEditModalVisible(true)}
-            onSharePress={handleShare}
-            avatarSize={AVATAR_SIZE}
-          />
-
-          <View
-            style={{
-              borderTopWidth: 0.5,
-              borderTopColor: isDark ? "#1a1a1a" : "#f3f4f6",
-              paddingTop: 20,
-            }}
-          >
-            <View className="flex-row items-center justify-between mb-4">
-              <Text
-                style={{ color: isDark ? "#ffffff" : "#000000" }}
-                className="text-base font-semibold"
-              >
-                Suggested Friends
-              </Text>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Text className="text-[#007AFF] text-sm font-semibold">
-                  See All
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <FriendSkeleton isDark={isDark} />
-            <FriendSkeleton isDark={isDark} />
-            <FriendSkeleton isDark={isDark} />
-          </View>
-
-          <View
-            style={{
-              borderTopWidth: 0.5,
-              borderTopColor: isDark ? "#1a1a1a" : "#f3f4f6",
-              paddingTop: 20,
-              marginTop: 20,
-            }}
-          >
-            <View className="items-center py-12">
-              <View
-                style={{
-                  borderWidth: 2,
-                  borderColor: isDark ? "#1a1a1a" : "#f3f4f6",
-                }}
-                className="w-20 h-20 rounded-full items-center justify-center mb-4"
-              >
-                <Radio size={36} color={isDark ? "#737373" : "#a1a1aa"} />
-              </View>
-              <Text
-                style={{ color: isDark ? "#ffffff" : "#000000" }}
-                className="text-xl font-bold mb-2"
-              >
-                No VibeCasts Yet
-              </Text>
-              <Text
-                style={{ color: isDark ? "#737373" : "#a1a1aa" }}
-                className="text-sm text-center px-8"
-              >
-                When you create VibeCasts, they'll appear here.
-              </Text>
-            </View>
-          </View>
-        </View>
-      </ScrollView>
+        <Plus size={28} color="#ffffff" />
+      </TouchableOpacity>
 
       <AvatarModal
         visible={avatarModalVisible}

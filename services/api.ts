@@ -860,3 +860,302 @@ export const updateOnlineStatusVisibility = async (
   });
   return res.data;
 };
+
+export interface MediaItem {
+  type: "image" | "video" | "link";
+  url: string;
+}
+
+export interface Will {
+  id: string;
+  _id?: string;
+  authorId: string;
+  authorName: string;
+  authorAvatar: string;
+  content: string;
+  media: MediaItem[];
+  category:
+    | "advice"
+    | "experience"
+    | "lesson"
+    | "opinion"
+    | "rule"
+    | "news"
+    | "update"
+    | "announcement"
+    | "promo"
+    | "tip";
+  tone:
+    | "calm"
+    | "strong"
+    | "emotional"
+    | "direct"
+    | "motivational"
+    | "informative"
+    | "fun"
+    | "serious"
+    | "promotional";
+  tags: string[];
+  visibility: "public" | "followers" | "private";
+  likesCount: number;
+  sharesCount: number;
+  commentsCount: number;
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+export interface WillsResponse {
+  success: boolean;
+  data: Will[];
+  pagination: PaginationInfo;
+}
+
+export interface WillResponse {
+  success: boolean;
+  data: Will;
+  message?: string;
+}
+
+export interface CreateWillPayload {
+  content: string;
+  category?:
+    | "advice"
+    | "belief"
+    | "experience"
+    | "lesson"
+    | "opinion"
+    | "rule"
+    | "news"
+    | "update"
+    | "announcement"
+    | "promo"
+    | "tip";
+  tone?:
+    | "calm"
+    | "strong"
+    | "emotional"
+    | "direct"
+    | "motivational"
+    | "informative"
+    | "fun"
+    | "serious"
+    | "promotional";
+  tags?: string[];
+  visibility?: "public" | "followers" | "private";
+  media?: MediaItem[];
+}
+
+export interface UpdateWillPayload {
+  content?: string;
+  category?:
+    | "advice"
+    | "belief"
+    | "experience"
+    | "lesson"
+    | "opinion"
+    | "rule"
+    | "news"
+    | "update"
+    | "announcement"
+    | "promo"
+    | "tip";
+  tone?:
+    | "calm"
+    | "strong"
+    | "emotional"
+    | "direct"
+    | "motivational"
+    | "informative"
+    | "fun"
+    | "serious"
+    | "promotional";
+  tags?: string[];
+  visibility?: "public" | "followers" | "private";
+  media?: MediaItem[];
+}
+
+export const getAllWills = async (params?: {
+  page?: number;
+  limit?: number;
+  category?: string;
+  tone?: string;
+  tags?: string;
+  authorId?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}): Promise<WillsResponse> => {
+  console.log("[WILLS] Fetching wills with params:", params);
+  const res = await api.get<WillsResponse>("/api/wills", { params });
+
+  const data = res.data;
+  data.data = data.data.map((will) => ({
+    ...will,
+    id: will.id || will._id,
+  }));
+
+  return data;
+};
+
+export const getWillById = async (willId: string): Promise<Will> => {
+  console.log("[WILLS] Fetching will:", willId);
+  const res = await api.get<WillResponse>(`/api/wills/${willId}`);
+  return res.data.data;
+};
+
+export const getMyWills = async (params?: {
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}): Promise<WillsResponse> => {
+  console.log("[WILLS] Fetching my wills");
+  const res = await api.get<WillsResponse>("/api/wills/my/wills", { params });
+  return res.data;
+};
+
+export const getWillsByAuthor = async (
+  authorId: string,
+  params?: {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  },
+): Promise<WillsResponse> => {
+  console.log("[WILLS] Fetching wills by author:", authorId);
+  const res = await api.get<WillsResponse>(`/api/wills/author/${authorId}`, {
+    params,
+  });
+  return res.data;
+};
+
+export const createWill = async (data: CreateWillPayload): Promise<Will> => {
+  console.log("[WILLS] Creating will");
+  const res = await api.post<WillResponse>("/api/wills", data);
+  return res.data.data;
+};
+
+export const createWillWithMedia = async (
+  content: string,
+  fileUri: string,
+  fileName: string,
+  mimeType: string,
+  additionalData?: Partial<CreateWillPayload>,
+  onUploadProgress?: (progressEvent: AxiosProgressEvent) => void,
+): Promise<Will> => {
+  console.log("[WILLS] Creating will with media:", fileName);
+
+  const formData = new FormData();
+  formData.append("content", content);
+
+  if (additionalData?.category) {
+    formData.append("category", additionalData.category);
+  }
+  if (additionalData?.tone) {
+    formData.append("tone", additionalData.tone);
+  }
+  if (additionalData?.visibility) {
+    formData.append("visibility", additionalData.visibility);
+  }
+  if (additionalData?.tags && additionalData.tags.length > 0) {
+    formData.append("tags", JSON.stringify(additionalData.tags));
+  }
+
+  formData.append("file", {
+    uri: fileUri,
+    name: fileName,
+    type: mimeType,
+  } as any);
+
+  const res = await api.post<WillResponse>("/api/wills", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress,
+    timeout: 60000,
+  });
+
+  console.log("[WILLS] Will created with media");
+  return res.data.data;
+};
+
+export const updateWill = async (
+  willId: string,
+  data: UpdateWillPayload,
+): Promise<Will> => {
+  console.log("[WILLS] Updating will:", willId);
+  const res = await api.put<WillResponse>(`/api/wills/${willId}`, data);
+  return res.data.data;
+};
+
+export const deleteWill = async (
+  willId: string,
+): Promise<{ success: boolean; message: string }> => {
+  console.log("[WILLS] Deleting will:", willId);
+  const res = await api.delete<{ success: boolean; message: string }>(
+    `/api/wills/${willId}`,
+  );
+  return res.data;
+};
+
+export const likeWill = async (willId: string): Promise<Will> => {
+  console.log("[WILLS] Liking will:", willId);
+  const res = await api.post<WillResponse>(`/api/wills/${willId}/like`);
+  return res.data.data;
+};
+
+export const unlikeWill = async (willId: string): Promise<Will> => {
+  console.log("[WILLS] Unliking will:", willId);
+  const res = await api.delete<WillResponse>(`/api/wills/${willId}/like`);
+  return res.data.data;
+};
+
+export const shareWill = async (willId: string): Promise<Will> => {
+  console.log("[WILLS] Sharing will:", willId);
+  const res = await api.post<WillResponse>(`/api/wills/${willId}/share`);
+  return res.data.data;
+};
+
+export const togglePinWill = async (willId: string): Promise<Will> => {
+  console.log("[WILLS] Toggling pin for will:", willId);
+  const res = await api.patch<WillResponse>(`/api/wills/${willId}/pin`);
+  return res.data.data;
+};
+
+export const getWillsByCategory = async (
+  category: string,
+  params?: {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  },
+): Promise<WillsResponse> => {
+  console.log("[WILLS] Fetching wills by category:", category);
+  const res = await api.get<WillsResponse>(`/api/wills/category/${category}`, {
+    params,
+  });
+  return res.data;
+};
+
+export const getWillsByTags = async (
+  tags: string[],
+  params?: {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: "asc" | "desc";
+  },
+): Promise<WillsResponse> => {
+  console.log("[WILLS] Fetching wills by tags:", tags);
+  const res = await api.get<WillsResponse>("/api/wills/filter/tags", {
+    params: { ...params, tags: tags.join(",") },
+  });
+  return res.data;
+};
