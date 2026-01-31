@@ -1,4 +1,5 @@
 import { createGroup } from "@/services/api";
+import { RootState } from "@/store";
 import { addGroup } from "@/store/groupsSlice";
 import { useAppDispatch } from "@/store/hooks";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,14 +7,18 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
-  Pressable,
+  Platform,
   ScrollView,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
 
 export default function CreateGroupScreen() {
+  const isDark = useSelector((state: RootState) => state.theme.isDark);
   const dispatch = useAppDispatch();
   const [groupName, setGroupName] = useState("");
   const [description, setDescription] = useState("");
@@ -31,7 +36,7 @@ export default function CreateGroupScreen() {
       const newGroup = await createGroup({
         name: groupName.trim(),
         description: description.trim() || undefined,
-        participantIds: [], // TODO: Add member selection
+        participantIds: [],
         isPublic,
       });
 
@@ -47,137 +52,218 @@ export default function CreateGroupScreen() {
   };
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
+    <SafeAreaView
+      style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
+      className="flex-1"
+    >
       {/* Header */}
-      <View className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
+      <View
+        style={{
+          borderBottomWidth: 0.5,
+          borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
+        }}
+        className="px-4 py-3"
+      >
         <View className="flex-row items-center justify-between">
-          <Pressable
+          <TouchableOpacity
             onPress={() => router.back()}
             className="w-10 h-10 items-center justify-center -ml-2"
           >
             <Ionicons name="chevron-back" size={28} color="#007AFF" />
-          </Pressable>
-          <Text className="text-xl font-semibold text-gray-900 dark:text-white">
+          </TouchableOpacity>
+          <Text
+            style={{ color: isDark ? "#ffffff" : "#000000" }}
+            className="text-xl font-semibold"
+          >
             New Group
           </Text>
-          <Pressable
+          <TouchableOpacity
             onPress={handleCreate}
             disabled={loading || !groupName.trim()}
-            className={`px-4 py-2 rounded-lg ${
-              loading || !groupName.trim()
-                ? "bg-gray-300 dark:bg-gray-700"
-                : "bg-blue-500 active:bg-blue-600"
-            }`}
+            style={{
+              opacity: loading || !groupName.trim() ? 0.5 : 1,
+            }}
           >
             <Text
-              className={`font-semibold ${
-                loading || !groupName.trim()
-                  ? "text-gray-500"
-                  : "text-white"
-              }`}
+              style={{ color: "#007AFF" }}
+              className="text-base font-semibold"
             >
               {loading ? "Creating..." : "Create"}
             </Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView className="flex-1">
         {/* Group Icon */}
         <View className="items-center py-8">
-          <View className="w-24 h-24 rounded-full bg-blue-500 items-center justify-center">
-            <Ionicons name="people" size={48} color="white" />
+          <View
+            style={{
+              backgroundColor: isDark ? "#262626" : "#f3f4f6",
+            }}
+            className="w-24 h-24 rounded-full items-center justify-center"
+          >
+            <Ionicons
+              name="people"
+              size={48}
+              color={isDark ? "#a1a1aa" : "#737373"}
+            />
           </View>
-          <Pressable className="mt-3">
-            <Text className="text-blue-500 font-medium">Add Group Photo</Text>
-          </Pressable>
+          <TouchableOpacity className="mt-3">
+            <Text style={{ color: "#007AFF" }} className="font-medium">
+              Add Group Photo
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Form Fields */}
-        <View className="px-4 space-y-4">
+        <View className="px-4">
           {/* Group Name */}
-          <View>
-            <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Group Name
+          <View
+            style={{
+              borderBottomWidth: 0.5,
+              borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
+            }}
+            className="pb-3"
+          >
+            <Text
+              style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+              className="text-sm font-medium mb-2"
+            >
+              GROUP NAME
             </Text>
             <TextInput
               value={groupName}
               onChangeText={setGroupName}
               placeholder="Enter group name"
-              placeholderTextColor="#9CA3AF"
-              className="bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-3 text-base text-gray-900 dark:text-white"
+              placeholderTextColor={isDark ? "#525252" : "#d4d4d8"}
+              style={{
+                backgroundColor: isDark ? "#000000" : "#ffffff",
+                color: isDark ? "#ffffff" : "#000000",
+                ...(Platform.OS === "ios" ? { height: 36 } : {}),
+              }}
+              className="text-base"
               maxLength={50}
             />
-            <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <Text
+              style={{ color: isDark ? "#525252" : "#d4d4d8" }}
+              className="text-xs mt-1"
+            >
               {groupName.length}/50
             </Text>
           </View>
 
           {/* Description */}
-          <View className="mt-4">
-            <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Description (Optional)
+          <View
+            style={{
+              borderBottomWidth: 0.5,
+              borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
+            }}
+            className="py-3"
+          >
+            <Text
+              style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+              className="text-sm font-medium mb-2"
+            >
+              DESCRIPTION (OPTIONAL)
             </Text>
             <TextInput
               value={description}
               onChangeText={setDescription}
               placeholder="What's this group about?"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={isDark ? "#525252" : "#d4d4d8"}
               multiline
               numberOfLines={3}
-              className="bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-3 text-base text-gray-900 dark:text-white"
+              style={{
+                backgroundColor: isDark ? "#000000" : "#ffffff",
+                color: isDark ? "#ffffff" : "#000000",
+              }}
+              className="text-base"
               maxLength={200}
               textAlignVertical="top"
             />
-            <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <Text
+              style={{ color: isDark ? "#525252" : "#d4d4d8" }}
+              className="text-xs mt-1"
+            >
               {description.length}/200
             </Text>
           </View>
 
           {/* Privacy Toggle */}
-          <View className="mt-6">
-            <Pressable
-              onPress={() => setIsPublic(!isPublic)}
-              className="flex-row items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-lg px-4 py-4"
-            >
-              <View>
-                <Text className="text-base font-medium text-gray-900 dark:text-white">
-                  Public Group
-                </Text>
-                <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  Anyone can find and join this group
-                </Text>
-              </View>
-              <View
-                className={`w-12 h-7 rounded-full ${
-                  isPublic ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"
-                } justify-center`}
+          <TouchableOpacity
+            onPress={() => setIsPublic(!isPublic)}
+            style={{
+              borderBottomWidth: 0.5,
+              borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
+            }}
+            className="flex-row items-center justify-between py-4"
+          >
+            <View>
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="text-base font-medium"
               >
-                <View
-                  className={`w-5 h-5 rounded-full bg-white ${
-                    isPublic ? "ml-6" : "ml-1"
-                  }`}
-                />
-              </View>
-            </Pressable>
-          </View>
+                Public Group
+              </Text>
+              <Text
+                style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+                className="text-sm mt-1"
+              >
+                Anyone can find and join
+              </Text>
+            </View>
+            <View
+              style={{
+                width: 51,
+                height: 31,
+                borderRadius: 15.5,
+                backgroundColor: isPublic ? "#34C759" : isDark ? "#262626" : "#e5e7eb",
+                padding: 2,
+              }}
+              className="justify-center"
+            >
+              <View
+                style={{
+                  width: 27,
+                  height: 27,
+                  borderRadius: 13.5,
+                  backgroundColor: "#ffffff",
+                  transform: [{ translateX: isPublic ? 20 : 0 }],
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 1,
+                  elevation: 2,
+                }}
+              />
+            </View>
+          </TouchableOpacity>
 
           {/* Info Box */}
-          <View className="mt-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+          <View
+            style={{
+              backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
+            }}
+            className="rounded-lg p-4 mt-6"
+          >
             <View className="flex-row">
               <Ionicons
                 name="information-circle"
                 size={20}
-                color="#3B82F6"
-                className="mr-2 mt-0.5"
+                color="#007AFF"
+                style={{ marginRight: 8, marginTop: 2 }}
               />
-              <Text className="flex-1 text-sm text-blue-700 dark:text-blue-300">
+              <Text
+                style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+                className="flex-1 text-sm"
+              >
                 You can add members after creating the group
               </Text>
             </View>
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }

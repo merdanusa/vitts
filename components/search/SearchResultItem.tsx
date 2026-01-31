@@ -1,7 +1,9 @@
 import { MessageSearchResult } from "@/services/api";
+import { RootState } from "@/store";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Pressable, Text, View } from "react";
+import { Text, View } from "react-native";
+import { useSelector } from "react-redux";
 
 interface SearchResultItemProps {
   result: MessageSearchResult;
@@ -12,8 +14,9 @@ interface SearchResultItemProps {
 export function SearchResultItem({
   result,
   searchQuery,
-  onPress,
 }: SearchResultItemProps) {
+  const isDark = useSelector((state: RootState) => state.theme.isDark);
+
   // Simple highlight function
   const highlightText = (text: string, query: string) => {
     if (!query.trim()) return text;
@@ -29,16 +32,19 @@ export function SearchResultItem({
   });
 
   return (
-    <Pressable
-      onPress={onPress}
-      className="px-4 py-3 bg-white dark:bg-gray-900 active:bg-gray-50 dark:active:bg-gray-800 border-b border-gray-200 dark:border-gray-800"
-    >
+    <View>
       {/* Sender Name & Date */}
       <View className="flex-row items-center justify-between mb-1">
-        <Text className="text-sm font-medium text-gray-900 dark:text-white">
+        <Text
+          style={{ color: isDark ? "#ffffff" : "#000000" }}
+          className="font-semibold text-base"
+        >
           {result.senderName}
         </Text>
-        <Text className="text-xs text-gray-500 dark:text-gray-400">
+        <Text
+          style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+          className="text-xs"
+        >
           {timeStr}
         </Text>
       </View>
@@ -46,18 +52,25 @@ export function SearchResultItem({
       {/* Message Content with Highlights */}
       <View className="flex-row items-start">
         <View className="flex-1">
-          <Text className="text-sm text-gray-700 dark:text-gray-300" numberOfLines={2}>
+          <Text
+            style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+            className="text-sm"
+            numberOfLines={2}
+          >
             {parts.map((part, index) => {
               const isHighlight =
                 part.toLowerCase() === searchQuery.toLowerCase();
               return (
                 <Text
                   key={index}
-                  className={
-                    isHighlight
-                      ? "bg-yellow-200 dark:bg-yellow-700 font-semibold"
-                      : ""
-                  }
+                  style={{
+                    backgroundColor: isHighlight
+                      ? isDark
+                        ? "#3a3a00"
+                        : "#fef3c7"
+                      : "transparent",
+                    fontWeight: isHighlight ? "600" : "400",
+                  }}
                 >
                   {part}
                 </Text>
@@ -80,11 +93,11 @@ export function SearchResultItem({
                       : "document"
               }
               size={16}
-              color="#9CA3AF"
+              color={isDark ? "#737373" : "#a1a1aa"}
             />
           </View>
         )}
       </View>
-    </Pressable>
+    </View>
   );
 }

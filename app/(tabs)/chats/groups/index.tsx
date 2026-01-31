@@ -1,91 +1,225 @@
 import { GroupListItem } from "@/components/groups/GroupListItem";
 import { Group } from "@/services/api";
+import { RootState } from "@/store";
 import { useAppSelector } from "@/store/hooks";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
-  Pressable,
+  Image,
+  Platform,
   RefreshControl,
   Text,
+  TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
 
 export default function GroupsListScreen() {
+  const isDark = useSelector((state: RootState) => state.theme.isDark);
   const groups = useAppSelector((state) => state.groups.groups);
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     // TODO: Fetch groups from API
     setTimeout(() => setRefreshing(false), 1000);
-  };
+  }, []);
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = useCallback(() => {
     router.push("/(tabs)/chats/groups/create" as any);
-  };
+  }, []);
 
-  const renderGroupItem = ({ item }: { item: Group }) => (
-    <GroupListItem group={item} />
+  const filteredGroups = groups.filter((group) =>
+    group.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const renderGroupItem = useCallback(
+    ({ item, index }: { item: Group; index: number }) => (
+      <TouchableOpacity
+        key={item.id}
+        activeOpacity={0.7}
+        onPress={() => router.push(`/(tabs)/chats/groups/${item.id}` as any)}
+        style={{
+          backgroundColor: isDark ? "#000000" : "#ffffff",
+          borderBottomWidth: index < filteredGroups.length - 1 ? 0.5 : 0,
+          borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
+        }}
+        className="px-4 py-3"
+      >
+        <GroupListItem group={item} />
+      </TouchableOpacity>
+    ),
+    [filteredGroups.length, isDark]
+  );
+
+  const keyExtractor = useCallback((item: Group) => item.id, []);
 
   const renderEmptyState = () => (
     <View className="flex-1 items-center justify-center px-8">
-      <View className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800 items-center justify-center mb-6">
-        <Ionicons name="people-outline" size={48} color="#9CA3AF" />
+      <View
+        style={{
+          width: 120,
+          height: 120,
+          borderRadius: 60,
+          backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+        }}
+        className="items-center justify-center mb-6"
+      >
+        <Ionicons
+          name="people-outline"
+          size={60}
+          color={isDark ? "#525252" : "#d4d4d8"}
+        />
       </View>
-      <Text className="text-xl font-semibold text-gray-900 dark:text-white mb-2 text-center">
+      <Text
+        style={{ color: isDark ? "#ffffff" : "#000000" }}
+        className="text-xl font-semibold mb-2 text-center"
+      >
         No Groups Yet
       </Text>
-      <Text className="text-base text-gray-500 dark:text-gray-400 text-center mb-8">
-        Create a group to start chatting with multiple people at once
+      <Text
+        style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+        className="text-base text-center mb-8"
+      >
+        Create a group to start chatting with multiple people
       </Text>
-      <Pressable
+      <TouchableOpacity
+        activeOpacity={0.8}
         onPress={handleCreateGroup}
-        className="bg-blue-500 px-6 py-3 rounded-lg active:bg-blue-600"
+        style={{ backgroundColor: "#007AFF" }}
+        className="px-8 py-3 rounded-full"
       >
         <Text className="text-white font-semibold text-base">
           Create Group
         </Text>
-      </Pressable>
+      </TouchableOpacity>
     </View>
   );
 
-  return (
-    <View className="flex-1 bg-white dark:bg-gray-950">
-      {/* Header */}
-      <View className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-2xl font-bold text-gray-900 dark:text-white">
-            Groups
-          </Text>
-          <Pressable
-            onPress={handleCreateGroup}
-            className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center active:bg-blue-600"
-          >
-            <Ionicons name="add" size={24} color="white" />
-          </Pressable>
-        </View>
-      </View>
+  if (groups.length === 0 && !searchQuery) {
+    return (
+      <SafeAreaView
+        style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
+        className="flex-1"
+      >
+        {renderEmptyState()}
+      </SafeAreaView>
+    );
+  }
 
-      {/* Groups List */}
-      <FlatList
-        data={groups}
-        renderItem={renderGroupItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={
-          groups.length === 0 ? { flex: 1 } : undefined
-        }
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor="#3B82F6"
+  return (
+    <SafeAreaView
+      style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
+      className="flex-1"
+    >
+      <View className="flex-1">
+        {/* Header */}
+        <View
+          style={{
+            borderBottomWidth: 0.5,
+            borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
+          }}
+          className="px-4 pt-2 pb-3"
+        >
+          <View className="flex-row gap-2 items-center justify-between mb-3">
+            <View className="flex-row gap-2 items-center">
+              <Image
+                source={require("@/assets/images/app_icon.png")}
+                className="w-10 h-10"
+                alt="logo"
+              />
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="text-3xl font-bold"
+              >
+                Groups
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleCreateGroup}
+              className="w-10 h-10 items-center justify-center"
+            >
+              <Ionicons
+                name="add-circle"
+                size={32}
+                color="#007AFF"
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Bar */}
+          <View className="relative">
+            <View className="absolute left-3 top-2.5 z-10">
+              <Ionicons
+                name="search"
+                size={16}
+                color={isDark ? "#737373" : "#a1a1aa"}
+              />
+            </View>
+            <TextInput
+              style={{
+                backgroundColor: isDark ? "#1a1a1a" : "#f9fafb",
+                color: isDark ? "#ffffff" : "#000000",
+                borderWidth: 0.5,
+                borderColor: isDark ? "#262626" : "#e5e7eb",
+                ...(Platform.OS === "ios" ? { height: 36 } : {}),
+              }}
+              className="rounded-lg pl-10 pr-4 py-2 text-base"
+              placeholder="Search groups"
+              placeholderTextColor={isDark ? "#737373" : "#a1a1aa"}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+          </View>
+        </View>
+
+        {/* Groups List */}
+        {filteredGroups.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-8">
+            <Text
+              style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+              className="text-base text-center"
+            >
+              {searchQuery ? "No groups found" : "No groups"}
+            </Text>
+            {!searchQuery && (
+              <Text
+                style={{ color: isDark ? "#525252" : "#d4d4d8" }}
+                className="text-sm text-center mt-2"
+              >
+                Create a new group to get started
+              </Text>
+            )}
+          </View>
+        ) : (
+          <FlatList
+            data={filteredGroups}
+            keyExtractor={keyExtractor}
+            renderItem={renderGroupItem}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={isDark ? "#ffffff" : "#000000"}
+              />
+            }
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            windowSize={10}
           />
-        }
-      />
-    </View>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }

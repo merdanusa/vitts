@@ -1,75 +1,80 @@
 import { Group } from "@/services/api";
-import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { RootState } from "@/store";
 import React from "react";
-import { Image, Pressable, Text, View } from "react-native";
+import { Image, Text, View } from "react-native";
+import { useSelector } from "react-redux";
 
 interface GroupListItemProps {
   group: Group;
-  onPress?: () => void;
 }
 
-export function GroupListItem({ group, onPress }: GroupListItemProps) {
-  const handlePress = () => {
-    if (onPress) {
-      onPress();
-    } else {
-      router.push(`/(tabs)/chats/groups/${group.id}` as any);
-    }
-  };
-
+export function GroupListItem({ group }: GroupListItemProps) {
+  const isDark = useSelector((state: RootState) => state.theme.isDark);
   const participantCount = group.participants?.length || 0;
 
+  const getInitials = (name: string): string => {
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const initials = getInitials(group.name);
+  const hasAvatar =
+    group.avatar && group.avatar !== "M" && group.avatar !== "";
+
   return (
-    <Pressable
-      onPress={handlePress}
-      className="flex-row items-center px-4 py-3 bg-white dark:bg-gray-900 active:bg-gray-50 dark:active:bg-gray-800 border-b border-gray-200 dark:border-gray-800"
-    >
+    <View className="flex-row items-center">
       {/* Group Avatar */}
       <View className="mr-3 relative">
-        {group.avatar ? (
+        {hasAvatar ? (
           <Image
             source={{ uri: group.avatar }}
-            className="w-14 h-14 rounded-full"
+            style={{ width: 56, height: 56, borderRadius: 28 }}
           />
         ) : (
-          <View className="w-14 h-14 rounded-full bg-blue-500 items-center justify-center">
-            <Ionicons name="people" size={28} color="white" />
+          <View
+            style={{
+              backgroundColor: isDark ? "#262626" : "#f3f4f6",
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+            }}
+            className="items-center justify-center"
+          >
+            <Text
+              style={{ color: isDark ? "#a1a1aa" : "#737373" }}
+              className="text-xl font-medium"
+            >
+              {initials}
+            </Text>
           </View>
         )}
       </View>
 
       {/* Group Info */}
       <View className="flex-1">
-        <View className="flex-row items-center justify-between mb-1">
+        <View className="flex-row justify-between items-center mb-1">
           <Text
-            className="text-base font-semibold text-gray-900 dark:text-white flex-1"
+            style={{ color: isDark ? "#ffffff" : "#000000" }}
+            className="font-semibold text-base"
             numberOfLines={1}
           >
             {group.name}
           </Text>
         </View>
-
-        <View className="flex-row items-center">
-          <Text className="text-sm text-gray-500 dark:text-gray-400" numberOfLines={1}>
+        <View className="flex-row justify-between items-center">
+          <Text
+            style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+            className="text-sm flex-1"
+            numberOfLines={1}
+          >
             {participantCount} {participantCount === 1 ? "member" : "members"}
+            {group.description && ` • ${group.description}`}
           </Text>
-          {group.description && (
-            <>
-              <Text className="text-sm text-gray-400 mx-2">•</Text>
-              <Text
-                className="text-sm text-gray-500 dark:text-gray-400 flex-1"
-                numberOfLines={1}
-              >
-                {group.description}
-              </Text>
-            </>
-          )}
         </View>
       </View>
-
-      {/* Chevron */}
-      <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-    </Pressable>
+    </View>
   );
 }
