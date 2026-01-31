@@ -1,6 +1,8 @@
+import { BlurView } from "expo-blur";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { X } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -9,9 +11,11 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
+  Text,
+  TouchableOpacity,
   View,
 } from "react-native";
-
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
@@ -33,44 +37,105 @@ import { useChatData } from "@/hooks/chat/useChatData";
 import { useRecording } from "@/hooks/chat/useRecording";
 import { useTypingIndicator } from "@/hooks/chat/useTypingIndicator";
 import { sendDocument, sendImage } from "@/utils/messageUpload";
+import { sendVoiceMessage } from "@/services/api";
+
+const ReplyPreview: React.FC<{
+  message: Message;
+  isDark: boolean;
+  onClose: () => void;
+}> = ({ message, isDark, onClose }) => {
+  const slideAnim = useRef(new Animated.Value(60)).current;
+
+  useEffect(() => {
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      tension: 100,
+      friction: 10,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View
+      className={`mx-3 mb-2 rounded-lg overflow-hidden border-l-4 border-l-[#0088cc] ${isDark ? "bg-neutral-900" : "bg-white"}`}
+      style={{ transform: [{ translateY: slideAnim }] }}
+    >
+      <View className="flex-row items-center py-2.5 px-3">
+        <View className="flex-1">
+          <Text className="text-[#0088cc] font-semibold text-[13px] mb-0.5">
+            Replying to {message.senderTitle || "message"}
+          </Text>
+          <Text
+            className={`text-sm ${isDark ? "text-neutral-500" : "text-neutral-600"}`}
+            numberOfLines={1}
+          >
+            {message.type === "image"
+              ? "📷 Photo"
+              : message.type === "voice"
+                ? "🎤 Voice message"
+                : message.content}
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={onClose}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <X size={20} color={isDark ? "#666" : "#999"} />
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+};
 
 const ChatDetailScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  // State
+  // Add mounted state to prevent rendering before navigation is ready
+  const [isMounted, setIsMounted] = useState(false);
   const [inputText, setInputText] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
 
   const { messages, chatData, currentUserId, loading, setMessages, loadChat } =
     useChatData(id);
-  const { isRecording, startRecording, stopRecording, recordingAnimation } =
-    useRecording();
+  const {
+    isRecording,
+    recordingDuration,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    recordingAnimation,
+  } = useRecording();
   const { isTyping, handleTyping, handleStopTyping } = useTypingIndicator();
+
+  // Set mounted after component mounts to ensure navigation context is ready
+  useEffect(() => {
+    const timer = setTimeout(() => setIsMounted(true), 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
       () => {
         setKeyboardVisible(true);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        setTimeout(
+          () => flatListRef.current?.scrollToEnd({ animated: true }),
+          100,
+        );
       },
     );
 
     const keyboardWillHide = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => {
-        setKeyboardVisible(false);
-      },
+      () => setKeyboardVisible(false),
     );
 
     return () => {
@@ -80,6 +145,8 @@ const ChatDetailScreen = () => {
   }, []);
 
   useEffect(() => {
+    if (!isMounted) return; // Don't load until mounted
+
     loadChat();
     socketService.connect();
 
@@ -87,13 +154,7 @@ const ChatDetailScreen = () => {
       if (data.chatId !== id) return;
 
       setMessages((prev) => {
-        // Prevent adding the same message twice (by real ID)
-        if (prev.some((msg) => msg.id === data.id)) {
-          console.log(
-            `[DUPLICATE PREVENTED] Message ${data.id} already exists`,
-          );
-          return prev;
-        }
+        if (prev.some((msg) => msg.id === data.id)) return prev;
 
         const filtered = prev.filter((msg) => {
           if (msg.id.startsWith("temp-") || msg.id.startsWith("optimistic-")) {
@@ -102,7 +163,7 @@ const ChatDetailScreen = () => {
             );
             return !(
               msg.content === (data.content || data.mediaUrl || "") &&
-              timeDiff < 15000 // 15 seconds tolerance
+              timeDiff < 15000
             );
           }
           return true;
@@ -125,9 +186,10 @@ const ChatDetailScreen = () => {
         return [...filtered, incoming];
       });
 
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 80);
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        80,
+      );
     };
 
     socketService.on("newMessage", handleNewMessage);
@@ -143,7 +205,7 @@ const ChatDetailScreen = () => {
       socketService.off("userTyping");
       socketService.off("userStopTyping");
     };
-  }, [id, currentUserId]);
+  }, [id, currentUserId, isMounted]);
 
   const bgImage = isDark
     ? require("@/assets/bg/default-dark.png")
@@ -153,46 +215,41 @@ const ChatDetailScreen = () => {
     if (!inputText.trim()) return;
     const messageContent = inputText.trim();
     setInputText("");
+    setReplyingTo(null);
     socketService.sendMessage({
       chatId: id,
       content: messageContent,
       type: "text",
+      replyTo: replyingTo?.id,
     });
   };
 
-  const handleEmojiSelect = (emoji: string) => {
+  const handleEmojiSelect = (emoji: string) =>
     setInputText((prev) => prev + emoji);
-    setShowEmojiPicker(false);
-  };
 
   const handleInputChange = (text: string) => {
     setInputText(text);
     const participant = chatData?.participants?.find(
       (p: any) => p.id !== currentUserId,
     );
-    if (text.trim() && participant?.id) {
+    if (text.trim() && participant?.id)
       socketService.typing(id, participant.id);
-    } else if (participant?.id) {
-      socketService.stopTyping(id, participant.id);
-    }
+    else if (participant?.id) socketService.stopTyping(id, participant.id);
   };
 
   const handleImagePick = async () => {
     setShowAttachMenu(false);
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      quality: 0.9,
     });
 
     if (!result.canceled && result.assets[0]) {
-      await sendImage(
-        result.assets[0].uri,
-        id,
-        setMessages,
-        setUploading,
-        flatListRef,
-      );
+      for (const asset of result.assets) {
+        await sendImage(asset.uri, id, setMessages, setUploading, flatListRef);
+      }
     }
   };
 
@@ -201,15 +258,15 @@ const ChatDetailScreen = () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
       Alert.alert(
-        "Permission Denied",
-        "Camera permission is required to take photos",
+        "Permission Required",
+        "Camera access is needed to take photos",
       );
       return;
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
+      allowsEditing: false,
+      quality: 0.9,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -228,128 +285,179 @@ const ChatDetailScreen = () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: "*/*",
       copyToCacheDirectory: true,
+      multiple: true,
     });
 
     if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      await sendDocument(
-        asset.uri,
-        asset.name,
-        asset.mimeType || "application/octet-stream",
-        id,
-        setMessages,
-        setUploading,
-        flatListRef,
-      );
+      for (const asset of result.assets) {
+        await sendDocument(
+          asset.uri,
+          asset.name,
+          asset.mimeType || "application/octet-stream",
+          id,
+          setMessages,
+          setUploading,
+          flatListRef,
+        );
+      }
     }
   };
 
-  const handleVoiceCall = () => {
-    Alert.alert("Voice Call", "Voice calling feature coming soon!");
+  const handleStopRecording = async () => {
+    try {
+      const result = await stopRecording();
+
+      if (result && result.uri) {
+        console.log("[Chat] Recording stopped, sending voice message...");
+        await sendVoiceMessage(
+          result.uri,
+          result.duration,
+          id,
+          setMessages,
+          setUploading,
+          flatListRef,
+        );
+      } else {
+        console.warn("[Chat] Recording stopped but no URI returned");
+        Alert.alert("Error", "Failed to record voice message");
+      }
+    } catch (error) {
+      console.error("[Chat] Error sending voice message:", error);
+      Alert.alert("Error", "Failed to send voice message. Please try again.");
+    }
   };
 
-  const handleVideoCall = () => {
-    Alert.alert("Video Call", "Video calling feature coming soon!");
+  const handleCancelRecording = async () => {
+    await cancelRecording();
   };
 
-  const handleMoreOptions = () => {
-    Alert.alert("More Options", "Additional options coming soon!");
-  };
+  const handleVoiceCall = () =>
+    Alert.alert("Voice Call", "Starting voice call...");
+  const handleVideoCall = () =>
+    Alert.alert("Video Call", "Starting video call...");
+  const handleMoreOptions = () =>
+    Alert.alert("Options", "Additional options...");
 
   const handleProfilePress = () => {
-    if (participant?.id) {
-      router.push(`/discover/${participant.id}`);
-    }
+    if (participant?.id) router.push(`/discover/${participant.id}`);
   };
+
+  const handleMessageLongPress = (message: Message) => setReplyingTo(message);
 
   const participant = chatData?.participants?.find(
     (p: any) => p.id !== currentUserId,
   );
 
-  if (loading) {
-    return <LoadingView isDark={isDark} />;
-  }
+  // Show loading screen until both data is loaded AND component is mounted
+  if (loading || !isMounted) return <LoadingView isDark={isDark} />;
 
   return (
-    <SafeAreaView
-      style={{ backgroundColor: isDark ? "#000000" : "#ffffff" }}
-      className="flex-1"
-      edges={["top"]}
-    >
-      <ImageBackground source={bgImage} className="flex-1" resizeMode="cover">
+    <View className={`flex-1 ${isDark ? "bg-[#0a0a0a]" : "bg-[#efeae2]"}`}>
+      <StatusBar
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor="transparent"
+        translucent
+      />
+
+      <ImageBackground
+        source={bgImage}
+        className="flex-1"
+        resizeMode="repeat"
+        imageStyle={{ opacity: isDark ? 0.03 : 0.06 }}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+          keyboardVerticalOffset={0}
           className="flex-1"
         >
-          <View className="flex-1 relative">
-            <View className="flex-1">
-              <MessagesList
-                ref={flatListRef}
-                messages={messages}
-                currentUserId={currentUserId}
-                isDark={isDark}
-                contentContainerStyle={{
-                  paddingTop: 100,
-                  paddingBottom: 16,
-                }}
-              />
-            </View>
-
-            <View className="absolute top-0 left-0 right-0 h-28 pointer-events-none z-[5]">
-              <View
-                className={`absolute inset-0 ${
-                  isDark
-                    ? "bg-gradient-to-b from-transparent via-black/40 to-black/90"
-                    : "bg-gradient-to-b from-transparent via-white/40 to-white/90"
-                }`}
-              />
-            </View>
-
-            {/* Header - Positioned Absolutely on Top */}
-            <View className="absolute top-0 left-0 right-0 z-10">
-              <ChatHeader
-                isDark={isDark}
-                participant={participant}
-                isTyping={isTyping}
-                initialIsOnline={participant?.isOnline}
-                onBack={() => router.back()}
-                onProfilePress={handleProfilePress}
-                onVoiceCall={handleVoiceCall}
-                onVideoCall={handleVideoCall}
-                onMoreOptions={handleMoreOptions}
-              />
-            </View>
-
-            {/* Upload Indicator */}
-            {uploading && <UploadIndicator isDark={isDark} />}
-
-            {/* Recording Indicator */}
-            {isRecording && (
-              <RecordingIndicator
-                isDark={isDark}
-                recordingAnimation={recordingAnimation}
-                onStop={stopRecording}
-              />
+          <Animated.View className="absolute top-0 left-0 right-0 z-50">
+            {Platform.OS === "ios" ? (
+              <BlurView
+                intensity={isDark ? 80 : 90}
+                tint={isDark ? "dark" : "light"}
+                className="overflow-hidden"
+              >
+                <SafeAreaView edges={["top"]}>
+                  <ChatHeader
+                    isDark={isDark}
+                    participant={participant}
+                    isTyping={isTyping}
+                    initialIsOnline={participant?.isOnline}
+                    onBack={() => router.back()}
+                    onProfilePress={handleProfilePress}
+                    onVoiceCall={handleVoiceCall}
+                    onVideoCall={handleVideoCall}
+                    onMoreOptions={handleMoreOptions}
+                  />
+                </SafeAreaView>
+              </BlurView>
+            ) : (
+              <View className={isDark ? "bg-[#121212]/97" : "bg-white/97"}>
+                <SafeAreaView edges={["top"]}>
+                  <ChatHeader
+                    isDark={isDark}
+                    participant={participant}
+                    isTyping={isTyping}
+                    initialIsOnline={participant?.isOnline}
+                    onBack={() => router.back()}
+                    onProfilePress={handleProfilePress}
+                    onVoiceCall={handleVoiceCall}
+                    onVideoCall={handleVideoCall}
+                    onMoreOptions={handleMoreOptions}
+                  />
+                </SafeAreaView>
+              </View>
             )}
+          </Animated.View>
 
-            {/* Chat Input */}
-            <ChatInput
+          <View className="flex-1">
+            <MessagesList
+              ref={flatListRef}
+              messages={messages}
+              currentUserId={currentUserId}
               isDark={isDark}
-              keyboardVisible={keyboardVisible}
-              inputText={inputText}
-              uploading={uploading}
-              isRecording={isRecording}
-              onChangeText={handleInputChange}
-              onSend={handleSend}
-              onAttach={() => setShowAttachMenu(true)}
-              onEmoji={() => setShowEmojiPicker(true)}
-              onStartRecording={startRecording}
-              onStopRecording={stopRecording}
+              onMessageLongPress={handleMessageLongPress}
+              contentContainerStyle={{
+                paddingTop: Platform.OS === "ios" ? 110 : 100,
+                paddingBottom: 16,
+              }}
             />
           </View>
 
-          {/* Emoji Picker Modal */}
+          {uploading && <UploadIndicator isDark={isDark} />}
+
+          {isRecording && (
+            <RecordingIndicator
+              isDark={isDark}
+              recordingAnimation={recordingAnimation}
+              recordingDuration={recordingDuration}
+              onStop={handleStopRecording}
+              onCancel={handleCancelRecording}
+            />
+          )}
+
+          {replyingTo && (
+            <ReplyPreview
+              message={replyingTo}
+              isDark={isDark}
+              onClose={() => setReplyingTo(null)}
+            />
+          )}
+
+          <ChatInput
+            isDark={isDark}
+            keyboardVisible={keyboardVisible}
+            inputText={inputText}
+            uploading={uploading}
+            isRecording={isRecording}
+            onChangeText={handleInputChange}
+            onSend={handleSend}
+            onAttach={() => setShowAttachMenu(true)}
+            onEmoji={() => setShowEmojiPicker(true)}
+            onStartRecording={startRecording}
+            onStopRecording={handleStopRecording}
+          />
+
           <EmojiPickerModal
             visible={showEmojiPicker}
             isDark={isDark}
@@ -357,7 +465,6 @@ const ChatDetailScreen = () => {
             onSelect={handleEmojiSelect}
           />
 
-          {/* Attachment Modal */}
           <AttachmentModal
             visible={showAttachMenu}
             isDark={isDark}
@@ -368,7 +475,7 @@ const ChatDetailScreen = () => {
           />
         </KeyboardAvoidingView>
       </ImageBackground>
-    </SafeAreaView>
+    </View>
   );
 };
 

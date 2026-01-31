@@ -49,6 +49,7 @@ export const MessagesList = forwardRef<FlatList, MessagesListProps>(
         maxToRenderPerBatch={15}
         updateCellsBatchingPeriod={50}
         windowSize={15}
+        className="mt-20"
       />
     );
   },

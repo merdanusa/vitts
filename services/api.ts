@@ -1159,3 +1159,102 @@ export const getWillsByTags = async (
   });
   return res.data;
 };
+export const sendVoiceMessage = async (
+  voiceUri: string,
+  duration: number,
+  chatId: string,
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
+  setUploading: (uploading: boolean) => void,
+  flatListRef?: React.RefObject<any>,
+): Promise<void> => {
+  try {
+    console.log("[VoiceUpload] Starting upload:", {
+      voiceUri,
+      duration,
+      chatId,
+    });
+    setUploading(true);
+
+    // Create optimistic message
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticMessage: Message = {
+      id: optimisticId,
+      senderTitle: "You",
+      senderId: "current-user",
+      type: "voice",
+      content: "",
+      mediaUrl: voiceUri,
+      duration,
+      time: new Date().toISOString(),
+      isRead: false,
+    };
+
+    // Add optimistic message to UI
+    setMessages((prev) => [...prev, optimisticMessage]);
+
+    // Scroll to bottom
+    setTimeout(() => {
+      flatListRef?.current?.scrollToEnd({ animated: true });
+    }, 100);
+
+    // Generate filename with timestamp
+    const timestamp = Date.now();
+    const filename = `voice_${timestamp}.m4a`;
+
+    console.log("[VoiceUpload] Uploading voice file...");
+
+    // Upload using the existing API function
+    const uploadedMessage = await sendFileMessage(
+      chatId,
+      voiceUri,
+      filename,
+      "audio/m4a",
+      "voice",
+      (progressEvent) => {
+        const percentCompleted = progressEvent.total
+          ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          : 0;
+        console.log(`[VoiceUpload] Progress: ${percentCompleted}%`);
+      },
+    );
+
+    console.log("[VoiceUpload] Upload successful:", uploadedMessage);
+
+    // Remove optimistic message (the real one will come via socket or is already returned)
+    setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId));
+
+    // If the backend doesn't auto-broadcast via socket, we can add the message directly
+    // Otherwise, socket will handle it
+    if (!uploadedMessage.id.startsWith("temp-")) {
+      setMessages((prev) => {
+        // Check if message already exists (from socket)
+        if (prev.some((msg) => msg.id === uploadedMessage.id)) {
+          return prev;
+        }
+        return [...prev, uploadedMessage];
+      });
+    }
+
+    console.log("[VoiceUpload] Voice message sent successfully");
+  } catch (error) {
+    console.error("[VoiceUpload] Error:", error);
+
+    // Remove optimistic message on error
+    setMessages((prev) =>
+      prev.filter((msg) => !msg.id.startsWith("optimistic-")),
+    );
+
+    throw error;
+  } finally {
+    setUploading(false);
+  }
+};
+
+/**
+ * Format duration in seconds to MM:SS format
+ */
+export const formatDuration = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+};

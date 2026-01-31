@@ -3,17 +3,23 @@ import {
   FREQUENT_EMOJIS,
   getCategoryKeys,
 } from "@/constants/emojis";
-import { X } from "lucide-react-native";
-import React, { useRef, useState } from "react";
+import { Search, X } from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
   Modal,
   Platform,
+  Pressable,
   ScrollView,
   Text,
-  TouchableOpacity,
+  TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const EMOJI_SIZE = (SCREEN_WIDTH - 32) / 8;
 
 interface EmojiPickerModalProps {
   visible: boolean;
@@ -22,8 +28,44 @@ interface EmojiPickerModalProps {
   onSelect: (emoji: string) => void;
 }
 
-const { width } = Dimensions.get("window");
-const EMOJI_SIZE = (width - 32) / 8;
+const EmojiButton: React.FC<{
+  emoji: string;
+  onPress: (emoji: string) => void;
+}> = React.memo(({ emoji, onPress }) => {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    Animated.spring(scale, {
+      toValue: 1.3,
+      tension: 300,
+      friction: 10,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scale, {
+      toValue: 1,
+      tension: 300,
+      friction: 10,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Pressable
+      onPress={() => onPress(emoji)}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={{ width: EMOJI_SIZE, height: EMOJI_SIZE }}
+      className="items-center justify-center"
+    >
+      <Animated.Text className="text-[32px]" style={{ transform: [{ scale }] }}>
+        {emoji}
+      </Animated.Text>
+    </Pressable>
+  );
+});
 
 export const EmojiPickerModal: React.FC<EmojiPickerModalProps> = ({
   visible,
@@ -31,228 +73,186 @@ export const EmojiPickerModal: React.FC<EmojiPickerModalProps> = ({
   onClose,
   onSelect,
 }) => {
+  const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState("smileys");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   const categoryScrollRef = useRef<ScrollView>(null);
   const categoryPositions = useRef<{ [key: string]: number }>({});
 
   const categories = getCategoryKeys();
 
-  const handleCategoryPress = (category: string, index: number) => {
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          tension: 65,
+          friction: 11,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      setSearchQuery("");
+    }
+  }, [visible]);
+
+  const handleCategoryPress = useCallback((category: string, index: number) => {
     setSelectedCategory(category);
     const position = categoryPositions.current[category];
     if (position !== undefined && scrollViewRef.current) {
       scrollViewRef.current.scrollTo({ y: position, animated: true });
     }
-
-    // Scroll category tabs
     if (categoryScrollRef.current) {
       categoryScrollRef.current.scrollTo({
         x: index * 52 - 100,
         animated: true,
       });
     }
-  };
+  }, []);
 
-  const handleEmojiPress = (emoji: string) => {
-    onSelect(emoji);
-  };
+  const handleEmojiPress = useCallback(
+    (emoji: string) => {
+      onSelect(emoji);
+    },
+    [onSelect],
+  );
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "rgba(0,0,0,0.4)",
-          justifyContent: "flex-end",
-        }}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={onClose}
-          style={{ flex: 1 }}
-        />
-
-        <View
-          style={{
-            backgroundColor: isDark ? "#000000" : "#ffffff",
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            height: "70%",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: -4 },
-            shadowOpacity: isDark ? 0.3 : 0.1,
-            shadowRadius: 12,
-            elevation: 20,
-          }}
+      <View className="flex-1 justify-end">
+        <Animated.View
+          className="absolute inset-0 bg-black/40"
+          style={{ opacity: backdropOpacity }}
         >
-          {/* Handle Bar */}
-          <View
-            style={{
-              alignItems: "center",
-              paddingTop: 12,
-              paddingBottom: 8,
-            }}
-          >
+          <Pressable className="flex-1" onPress={onClose} />
+        </Animated.View>
+
+        <Animated.View
+          className={`rounded-t-3xl h-[70%] shadow-2xl ${isDark ? "bg-neutral-900" : "bg-white"}`}
+          style={{ transform: [{ translateY: slideAnim }] }}
+        >
+          <View className="items-center pt-3 pb-2">
             <View
-              style={{
-                width: 36,
-                height: 5,
-                borderRadius: 3,
-                backgroundColor: isDark ? "#48484a" : "#d1d1d6",
-              }}
+              className={`w-9 h-[5px] rounded-full ${isDark ? "bg-neutral-700" : "bg-neutral-300"}`}
             />
           </View>
 
-          {/* Header */}
           <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: 20,
-              paddingVertical: 12,
-              borderBottomWidth: 0.33,
-              borderBottomColor: isDark ? "#38383a" : "#c6c6c8",
-            }}
+            className={`flex-row items-center justify-between px-5 py-3 border-b ${isDark ? "border-white/10" : "border-black/5"}`}
           >
             <Text
-              style={{
-                color: isDark ? "#ffffff" : "#000000",
-                fontSize: 20,
-                fontWeight: "700",
-                letterSpacing: 0.3,
-              }}
+              className={`text-xl font-bold tracking-tight ${isDark ? "text-neutral-100" : "text-neutral-900"}`}
             >
               Emoji
             </Text>
-            <TouchableOpacity
-              activeOpacity={0.6}
+            <Pressable
               onPress={onClose}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: isDark ? "#1c1c1e" : "#f2f2f7",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+              className={`w-8 h-8 rounded-full items-center justify-center ${isDark ? "bg-neutral-800" : "bg-neutral-100"}`}
             >
               <X
                 size={20}
-                color={isDark ? "#ffffff" : "#000000"}
+                color={isDark ? "#a1a1aa" : "#71717a"}
                 strokeWidth={2.5}
               />
-            </TouchableOpacity>
+            </Pressable>
           </View>
 
-          {/* Emoji Grid */}
+          <View
+            className={`mx-4 mt-3 flex-row items-center rounded-xl px-3 ${isDark ? "bg-neutral-800" : "bg-neutral-100"}`}
+          >
+            <Search size={18} color={isDark ? "#71717a" : "#a1a1aa"} />
+            <TextInput
+              className={`flex-1 py-2.5 px-2 text-[15px] ${isDark ? "text-white" : "text-neutral-900"}`}
+              placeholder="Search emoji"
+              placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+
           <ScrollView
             ref={scrollViewRef}
-            style={{ flex: 1 }}
+            className="flex-1"
             contentContainerStyle={{
               paddingHorizontal: 16,
-              paddingTop: 20,
-              paddingBottom: 120,
+              paddingTop: 16,
+              paddingBottom: 100,
             }}
             showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
           >
-            {/* Frequent Section */}
             <View
-              style={{ marginBottom: 32 }}
-              onLayout={(event) => {
-                categoryPositions.current["frequent"] =
-                  event.nativeEvent.layout.y;
+              className="mb-8"
+              onLayout={(e) => {
+                categoryPositions.current["frequent"] = e.nativeEvent.layout.y;
               }}
             >
               <Text
-                style={{
-                  color: isDark ? "#98989d" : "#6e6e73",
-                  fontSize: 13,
-                  fontWeight: "600",
-                  marginBottom: 16,
-                  marginLeft: 4,
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
+                className={`text-[13px] font-semibold mb-4 ml-1 uppercase tracking-wider ${isDark ? "text-neutral-500" : "text-neutral-400"}`}
               >
                 Frequently Used
               </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  flexWrap: "wrap",
-                }}
-              >
+              <View className="flex-row flex-wrap">
                 {FREQUENT_EMOJIS.map((emoji, index) => (
-                  <TouchableOpacity
+                  <EmojiButton
                     key={`frequent-${index}`}
-                    activeOpacity={0.5}
-                    onPress={() => handleEmojiPress(emoji)}
-                    style={{
-                      width: EMOJI_SIZE,
-                      height: EMOJI_SIZE,
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Text style={{ fontSize: 32 }}>{emoji}</Text>
-                  </TouchableOpacity>
+                    emoji={emoji}
+                    onPress={handleEmojiPress}
+                  />
                 ))}
               </View>
             </View>
 
-            {/* Category Sections */}
             {categories.map((category) => {
               const cat = EMOJI_CATEGORIES[category];
               return (
                 <View
                   key={category}
-                  style={{ marginBottom: 32 }}
-                  onLayout={(event) => {
+                  className="mb-8"
+                  onLayout={(e) => {
                     categoryPositions.current[category] =
-                      event.nativeEvent.layout.y;
+                      e.nativeEvent.layout.y;
                   }}
                 >
                   <Text
-                    style={{
-                      color: isDark ? "#98989d" : "#6e6e73",
-                      fontSize: 13,
-                      fontWeight: "600",
-                      marginBottom: 16,
-                      marginLeft: 4,
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                    }}
+                    className={`text-[13px] font-semibold mb-4 ml-1 uppercase tracking-wider ${isDark ? "text-neutral-500" : "text-neutral-400"}`}
                   >
                     {cat.title}
                   </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      flexWrap: "wrap",
-                    }}
-                  >
+                  <View className="flex-row flex-wrap">
                     {cat.emojis.map((emoji, index) => (
-                      <TouchableOpacity
+                      <EmojiButton
                         key={`${category}-${index}`}
-                        activeOpacity={0.5}
-                        onPress={() => handleEmojiPress(emoji)}
-                        style={{
-                          width: EMOJI_SIZE,
-                          height: EMOJI_SIZE,
-                          justifyContent: "center",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Text style={{ fontSize: 32 }}>{emoji}</Text>
-                      </TouchableOpacity>
+                        emoji={emoji}
+                        onPress={handleEmojiPress}
+                      />
                     ))}
                   </View>
                 </View>
@@ -260,17 +260,10 @@ export const EmojiPickerModal: React.FC<EmojiPickerModalProps> = ({
             })}
           </ScrollView>
 
-          {/* Category Tabs - Fixed Bottom */}
           <View
+            className={`absolute bottom-0 left-0 right-0 border-t ${isDark ? "bg-neutral-900 border-white/10" : "bg-neutral-50 border-black/5"}`}
             style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor: isDark ? "#000000" : "#f2f2f7",
-              borderTopWidth: 0.33,
-              borderTopColor: isDark ? "#38383a" : "#c6c6c8",
-              paddingBottom: Platform.OS === "ios" ? 34 : 16,
+              paddingBottom: Platform.OS === "ios" ? insets.bottom : 16,
               paddingTop: 12,
             }}
           >
@@ -283,58 +276,37 @@ export const EmojiPickerModal: React.FC<EmojiPickerModalProps> = ({
                 alignItems: "center",
               }}
             >
-              {/* Frequent Tab */}
-              <TouchableOpacity
-                activeOpacity={0.6}
+              <Pressable
                 onPress={() => handleCategoryPress("frequent", -1)}
-                style={{
-                  width: 48,
-                  height: 48,
-                  marginRight: 4,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  borderRadius: 14,
-                  backgroundColor:
-                    selectedCategory === "frequent"
-                      ? isDark
-                        ? "#1c1c1e"
-                        : "#ffffff"
-                      : "transparent",
-                }}
+                className={`w-12 h-12 mr-1 items-center justify-center rounded-xl ${
+                  selectedCategory === "frequent"
+                    ? isDark
+                      ? "bg-neutral-800"
+                      : "bg-white"
+                    : ""
+                }`}
               >
-                <Text style={{ fontSize: 26 }}>🕐</Text>
-              </TouchableOpacity>
+                <Text className="text-[26px]">🕐</Text>
+              </Pressable>
 
-              {/* Category Tabs */}
               {categories.map((category, index) => {
                 const cat = EMOJI_CATEGORIES[category];
                 const isSelected = selectedCategory === category;
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={category}
-                    activeOpacity={0.6}
                     onPress={() => handleCategoryPress(category, index)}
-                    style={{
-                      width: 48,
-                      height: 48,
-                      marginRight: 4,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      borderRadius: 14,
-                      backgroundColor: isSelected
-                        ? isDark
-                          ? "#1c1c1e"
-                          : "#ffffff"
-                        : "transparent",
-                    }}
+                    className={`w-12 h-12 mr-1 items-center justify-center rounded-xl ${
+                      isSelected ? (isDark ? "bg-neutral-800" : "bg-white") : ""
+                    }`}
                   >
-                    <Text style={{ fontSize: 26 }}>{cat.icon}</Text>
-                  </TouchableOpacity>
+                    <Text className="text-[26px]">{cat.icon}</Text>
+                  </Pressable>
                 );
               })}
             </ScrollView>
           </View>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
