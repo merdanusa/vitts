@@ -1,5 +1,6 @@
 import { configureStore } from "@reduxjs/toolkit";
 import contactReducer from "./contactsSlice";
+import groupsReducer from "./groupsSlice";
 import themeReducer from "./themeSlice";
 import userReducer from "./userSlice";
 
@@ -8,6 +9,7 @@ export const store = configureStore({
     theme: themeReducer,
     user: userReducer,
     contacts: contactReducer,
+    groups: groupsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

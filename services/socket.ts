@@ -94,6 +94,67 @@
       this.socket.on("chatUpdated", (data) => {
         this.emit("chatUpdated", data);
       });
+
+      // Group events
+      this.socket.on("groupCreated", (data) => {
+        this.emit("groupCreated", data);
+      });
+
+      this.socket.on("memberJoined", (data) => {
+        this.emit("memberJoined", data);
+      });
+
+      this.socket.on("memberRemoved", (data) => {
+        this.emit("memberRemoved", data);
+      });
+
+      this.socket.on("roleChanged", (data) => {
+        this.emit("roleChanged", data);
+      });
+
+      this.socket.on("announcementPosted", (data) => {
+        this.emit("announcementPosted", data);
+      });
+
+      this.socket.on("messagePinned", (data) => {
+        this.emit("messagePinned", data);
+      });
+
+      // Status events
+      this.socket.on("statusCreated", (data) => {
+        this.emit("statusCreated", data);
+      });
+
+      this.socket.on("statusViewed", (data) => {
+        this.emit("statusViewed", data);
+      });
+
+      this.socket.on("statusReactionAdded", (data) => {
+        this.emit("statusReactionAdded", data);
+      });
+
+      // Notification events
+      this.socket.on("chatMuted", (data) => {
+        this.emit("chatMuted", data);
+      });
+
+      // Follower events
+      this.socket.on("followerAdded", (data) => {
+        this.emit("followerAdded", data);
+      });
+
+      this.socket.on("followerRemoved", (data) => {
+        this.emit("followerRemoved", data);
+      });
+
+      // Moderation events
+      this.socket.on("userWarned", (data) => {
+        this.emit("userWarned", data);
+      });
+
+      this.socket.on("userBanned", (data) => {
+        this.emit("userBanned", data);
+      });
     }
 
     disconnect() {
@@ -161,6 +222,39 @@
 
     isConnected(): boolean {
       return this.socket?.connected || false;
+    }
+
+    // Group-specific methods
+    joinGroup(groupId: string) {
+      if (!this.socket?.connected) return;
+      this.socket.emit("joinGroup", { groupId });
+      console.log("[SOCKET] Joined group room:", groupId);
+    }
+
+    leaveGroupRoom(groupId: string) {
+      if (!this.socket?.connected) return;
+      this.socket.emit("leaveGroup", { groupId });
+      console.log("[SOCKET] Left group room:", groupId);
+    }
+
+    sendGroupMessage(params: {
+      groupId: string;
+      content: string;
+      type?: string;
+      duration?: number;
+    }) {
+      if (!this.socket?.connected) {
+        console.error("[SOCKET] Not connected");
+        return;
+      }
+
+      this.socket.emit("sendGroupMessage", {
+        groupId: params.groupId,
+        content: params.content,
+        type: params.type || "text",
+        duration: params.duration,
+      });
+      console.log("[SOCKET] Group message sent");
     }
   }
 

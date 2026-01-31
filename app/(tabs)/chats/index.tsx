@@ -37,6 +37,7 @@ const ChatsScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [showDebug, setShowDebug] = useState(false);
+  const [activeTab, setActiveTab] = useState<"chats" | "groups">("chats");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const appState = useRef(AppState.currentState);
 
@@ -377,18 +378,94 @@ const ChatsScreen = () => {
           }}
           className="px-4 pt-2 pb-3"
         >
-          <View className="flex-row gap-2 items-center mb-3">
-            <Image
-              source={require("@/assets/images/app_icon.png")}
-              className="w-10 h-10"
-              alt="logo"
-            />
-            <Text
-              style={{ color: isDark ? "#ffffff" : "#000000" }}
-              className="text-3xl font-bold"
+          <View className="flex-row gap-2 items-center justify-between mb-3">
+            <View className="flex-row gap-2 items-center">
+              <Image
+                source={require("@/assets/images/app_icon.png")}
+                className="w-10 h-10"
+                alt="logo"
+              />
+              <Text
+                style={{ color: isDark ? "#ffffff" : "#000000" }}
+                className="text-3xl font-bold"
+              >
+                Vitts
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/chats/search")}
+              className="w-10 h-10 items-center justify-center"
             >
-              Vitts
-            </Text>
+              <Search size={24} color={isDark ? "#ffffff" : "#000000"} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Segmented Control */}
+          <View
+            style={{
+              backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+            }}
+            className="flex-row rounded-lg p-1 mb-3"
+          >
+            <Pressable
+              onPress={() => setActiveTab("chats")}
+              style={{
+                backgroundColor:
+                  activeTab === "chats"
+                    ? isDark
+                      ? "#000000"
+                      : "#ffffff"
+                    : "transparent",
+              }}
+              className="flex-1 py-2 rounded-md"
+            >
+              <Text
+                style={{
+                  color:
+                    activeTab === "chats"
+                      ? isDark
+                        ? "#ffffff"
+                        : "#000000"
+                      : isDark
+                        ? "#737373"
+                        : "#a1a1aa",
+                }}
+                className="text-center font-medium text-sm"
+              >
+                Chats
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setActiveTab("groups");
+                router.push("/(tabs)/chats/groups");
+              }}
+              style={{
+                backgroundColor:
+                  activeTab === "groups"
+                    ? isDark
+                      ? "#000000"
+                      : "#ffffff"
+                    : "transparent",
+              }}
+              className="flex-1 py-2 rounded-md"
+            >
+              <Text
+                style={{
+                  color:
+                    activeTab === "groups"
+                      ? isDark
+                        ? "#ffffff"
+                        : "#000000"
+                      : isDark
+                        ? "#737373"
+                        : "#a1a1aa",
+                }}
+                className="text-center font-medium text-sm"
+              >
+                Groups
+              </Text>
+            </Pressable>
           </View>
 
           <View className="relative">
