@@ -1,4 +1,5 @@
 import { DebugUserInfo } from "@/components/screens/DebugUserInfo";
+import { GroupListItem } from "@/components/groups/GroupListItem";
 import { ChatListItem, getCurrentUser, getMyChats } from "@/services/api";
 import { RootState } from "@/store";
 import { useRouter } from "expo-router";
@@ -19,8 +20,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
+import { Ionicons } from "@expo/vector-icons";
 
-const getInitials = (name: string): string => {
+// --- FIX 1: Single, Safe Helper Function (Moved outside component) ---
+const getInitials = (name?: string | null): string => {
+  // Safety check: if name is missing or empty, return fallback
+  if (!name || name.trim().length === 0) {
+    return "?";
+  }
+
   const parts = name.trim().split(" ");
   if (parts.length >= 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -30,6 +38,7 @@ const getInitials = (name: string): string => {
 
 const ChatsScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
+  const groups = useSelector((state: RootState) => state.groups.groups);
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [chats, setChats] = useState<ChatListItem[]>([]);
@@ -87,11 +96,21 @@ const ChatsScreen = () => {
     loadChats();
   }, []);
 
-  const filteredChats = chats.filter(
-    (chat) =>
-      chat.participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (chat.participant.login?.toLowerCase() || "").includes(searchQuery.toLowerCase()),
-  );
+  // --- FIX 2: Removed duplicate getInitials function from here ---
+
+  const filteredChats = chats.filter((chat) => {
+    const query = searchQuery.toLowerCase();
+    const name = chat.participant?.name?.toLowerCase() ?? "";
+    const login = chat.participant?.login?.toLowerCase() ?? "";
+    return name.includes(query) || login.includes(query);
+  });
+
+  const filteredGroups = groups.filter((group) => {
+    const query = searchQuery.toLowerCase();
+    const name = group.name?.toLowerCase() ?? "";
+    const description = group.description?.toLowerCase() ?? "";
+    return name.includes(query) || description.includes(query);
+  });
 
   const formatTime = useCallback((timeString: string) => {
     const messageDate = new Date(timeString);
@@ -197,7 +216,13 @@ const ChatsScreen = () => {
     ({ item, index }: { item: ChatListItem; index: number }) => {
       const unread = isUnread(item, currentUserId);
       const messageStatus = getMessageStatus(item, currentUserId, isDark);
-      const initials = getInitials(item.participant.name);
+
+      // --- FIX 3: Safely calculate Display Name and Initials ---
+      // If name is missing, use login. If login is missing, use "Unknown"
+      const displayName =
+        item.participant?.name || item.participant?.login || "Unknown";
+      const initials = getInitials(displayName);
+
       const hasAvatar =
         item.participant.avatar &&
         item.participant.avatar !== "M" &&
@@ -264,12 +289,13 @@ const ChatsScreen = () => {
 
             <View className="flex-1">
               <View className="flex-row justify-between items-center mb-1">
+                {/* --- FIX 4: Use displayName here instead of item.participant.name --- */}
                 <Text
                   style={{ color: isDark ? "#ffffff" : "#000000" }}
                   className="font-semibold text-base"
                   numberOfLines={1}
                 >
-                  {item.participant.name}
+                  {displayName}
                 </Text>
                 {item.lastMessage && (
                   <Text
@@ -326,6 +352,60 @@ const ChatsScreen = () => {
   );
 
   const keyExtractor = useCallback((item: ChatListItem) => item.id, []);
+
+  const renderGroupItem = useCallback(
+    ({ item, index }: { item: any; index: number }) => {
+      return (
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => router.push(`/chats/${item.id}`)}
+          style={{
+            backgroundColor: isDark ? "#000000" : "#ffffff",
+            borderBottomWidth: index < filteredGroups.length - 1 ? 0.5 : 0,
+            borderBottomColor: isDark ? "#1a1a1a" : "#f3f4f6",
+          }}
+          className="px-4 py-3"
+        >
+          <GroupListItem group={item} />
+        </TouchableOpacity>
+      );
+    },
+    [isDark, filteredGroups.length, router],
+  );
+
+  const renderGroupsEmpty = useCallback(() => {
+    return (
+      <View className="flex-1 items-center justify-center px-8">
+        <View
+          style={{
+            width: 80,
+            height: 80,
+            borderRadius: 40,
+            backgroundColor: isDark ? "#1a1a1a" : "#f3f4f6",
+          }}
+          className="items-center justify-center mb-4"
+        >
+          <Ionicons
+            name="people-outline"
+            size={40}
+            color={isDark ? "#525252" : "#d4d4d8"}
+          />
+        </View>
+        <Text
+          style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+          className="text-base text-center"
+        >
+          No groups yet
+        </Text>
+        <Text
+          style={{ color: isDark ? "#525252" : "#d4d4d8" }}
+          className="text-sm text-center mt-2"
+        >
+          Create groups to chat with multiple people
+        </Text>
+      </View>
+    );
+  }, [isDark]);
 
   if (loading) {
     return (
@@ -436,10 +516,7 @@ const ChatsScreen = () => {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => {
-                setActiveTab("groups");
-                router.push("/(tabs)/chats/groups");
-              }}
+              onPress={() => setActiveTab("groups")}
               style={{
                 backgroundColor:
                   activeTab === "groups"
@@ -492,29 +569,50 @@ const ChatsScreen = () => {
           </View>
         </View>
 
-        {filteredChats.length === 0 ? (
-          <View className="flex-1 items-center justify-center px-8">
-            <Text
-              style={{ color: isDark ? "#737373" : "#a1a1aa" }}
-              className="text-base text-center"
-            >
-              {searchQuery ? "No chats found" : "No messages"}
-            </Text>
-            {!searchQuery && (
+        {activeTab === "chats" ? (
+          filteredChats.length === 0 ? (
+            <View className="flex-1 items-center justify-center px-8">
               <Text
-                style={{ color: isDark ? "#525252" : "#d4d4d8" }}
-                className="text-sm text-center mt-2"
+                style={{ color: isDark ? "#737373" : "#a1a1aa" }}
+                className="text-base text-center"
               >
-                Start a new conversation
+                {searchQuery ? "No chats found" : "No messages"}
               </Text>
-            )}
-          </View>
+              {!searchQuery && (
+                <Text
+                  style={{ color: isDark ? "#525252" : "#d4d4d8" }}
+                  className="text-sm text-center mt-2"
+                >
+                  Start a new conversation
+                </Text>
+              )}
+            </View>
+          ) : (
+            <FlatList
+              data={filteredChats}
+              keyExtractor={keyExtractor}
+              renderItem={renderChatItem}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={isDark ? "#ffffff" : "#000000"}
+                />
+              }
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              windowSize={10}
+            />
+          )
         ) : (
           <FlatList
-            data={filteredChats}
-            keyExtractor={keyExtractor}
-            renderItem={renderChatItem}
+            data={filteredGroups}
+            keyExtractor={(item) => item.id}
+            renderItem={renderGroupItem}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={renderGroupsEmpty}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -529,27 +627,53 @@ const ChatsScreen = () => {
           />
         )}
 
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={handleContactsPress}
-          style={{
-            position: "absolute",
-            bottom: 20,
-            right: 20,
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: "#007AFF",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
-          }}
-          className="items-center justify-center"
-        >
-          <UserPlus size={24} color="#ffffff" />
-        </TouchableOpacity>
+        {activeTab === "chats" && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={handleContactsPress}
+            style={{
+              position: "absolute",
+              bottom: 20,
+              right: 20,
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: "#007AFF",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+            className="items-center justify-center"
+          >
+            <UserPlus size={24} color="#ffffff" />
+          </TouchableOpacity>
+        )}
+
+        {activeTab === "groups" && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.push("/(tabs)/chats/groups/create")}
+            style={{
+              position: "absolute",
+              bottom: 20,
+              right: 20,
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: "#007AFF",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+            className="items-center justify-center"
+          >
+            <UserPlus size={24} color="#ffffff" />
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );

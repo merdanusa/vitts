@@ -344,9 +344,18 @@ const ChatDetailScreen = () => {
 
   const handleMessageLongPress = (message: Message) => setReplyingTo(message);
 
-  const participant = chatData?.participants?.find(
-    (p: any) => p.id !== currentUserId,
-  );
+  // Detect if this is a group chat
+  const isGroup =
+    chatData?.type === "group" || (chatData?.participants?.length ?? 0) > 2;
+
+  const participant = isGroup
+    ? null
+    : chatData?.participants?.find((p: any) => p.id !== currentUserId);
+
+  const handleGroupInfoPress = () => {
+    // TODO: Open group info modal
+    console.log("Group info");
+  };
 
   // Show loading screen until both data is loaded AND component is mounted
   if (loading || !isMounted) return <LoadingView isDark={isDark} />;
@@ -366,9 +375,9 @@ const ChatDetailScreen = () => {
         imageStyle={{ opacity: isDark ? 0.03 : 0.06 }}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={0}
-          className="flex-1"
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 88 : 0}
+          style={{ flex: 1 }}
         >
           <Animated.View className="absolute top-0 left-0 right-0 z-50">
             {Platform.OS === "ios" ? (
@@ -381,10 +390,15 @@ const ChatDetailScreen = () => {
                   <ChatHeader
                     isDark={isDark}
                     participant={participant}
+                    isGroup={isGroup}
+                    groupName={isGroup ? chatData?.name : undefined}
+                    groupMemberCount={
+                      isGroup ? chatData?.participants?.length : undefined
+                    }
                     isTyping={isTyping}
                     initialIsOnline={participant?.isOnline}
                     onBack={() => router.back()}
-                    onProfilePress={handleProfilePress}
+                    onProfilePress={isGroup ? handleGroupInfoPress : handleProfilePress}
                     onVoiceCall={handleVoiceCall}
                     onVideoCall={handleVideoCall}
                     onMoreOptions={handleMoreOptions}
@@ -397,10 +411,15 @@ const ChatDetailScreen = () => {
                   <ChatHeader
                     isDark={isDark}
                     participant={participant}
+                    isGroup={isGroup}
+                    groupName={isGroup ? chatData?.name : undefined}
+                    groupMemberCount={
+                      isGroup ? chatData?.participants?.length : undefined
+                    }
                     isTyping={isTyping}
                     initialIsOnline={participant?.isOnline}
                     onBack={() => router.back()}
-                    onProfilePress={handleProfilePress}
+                    onProfilePress={isGroup ? handleGroupInfoPress : handleProfilePress}
                     onVoiceCall={handleVoiceCall}
                     onVideoCall={handleVideoCall}
                     onMoreOptions={handleMoreOptions}

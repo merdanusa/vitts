@@ -4,10 +4,14 @@ import { getOnlineStatus } from "@/utils/lastSeen";
 import { ChevronLeft, MoreVertical, Phone, Video } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Image, Pressable, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface ChatHeaderProps {
   isDark: boolean;
-  participant: any;
+  participant?: any;
+  isGroup?: boolean;
+  groupName?: string;
+  groupMemberCount?: number;
   isTyping: boolean;
   initialIsOnline?: boolean;
   initialLastSeen?: string | null;
@@ -126,6 +130,9 @@ const RippleButton: React.FC<{
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   isDark,
   participant,
+  isGroup = false,
+  groupName,
+  groupMemberCount,
   isTyping,
   initialIsOnline = false,
   initialLastSeen = null,
@@ -143,7 +150,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   const headerOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (!participant?.id) return;
+    if (isGroup || !participant?.id) return;
 
     let isMounted = true;
     let intervalId: NodeJS.Timeout;
@@ -173,15 +180,16 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, [participant?.id]);
+  }, [participant?.id, isGroup]);
 
   useEffect(() => {
-    if (participant?.isOnline !== undefined) {
+    if (!isGroup && participant?.isOnline !== undefined) {
       setIsOnline(participant.isOnline);
     }
-  }, [participant?.isOnline]);
+  }, [participant?.isOnline, isGroup]);
 
   const hasAvatar =
+    !isGroup &&
     participant?.avatar &&
     participant.avatar !== "M" &&
     participant.avatar !== "";
@@ -191,10 +199,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     if (isTyping) {
       return null;
     }
+    if (isGroup) {
+      return `${groupMemberCount || 0} members`;
+    }
     return getOnlineStatus(isOnline, lastSeen);
   };
 
   const statusText = getStatusText();
+  const displayName = isGroup ? groupName : participant?.name || "Chat";
 
   return (
     <View className="relative overflow-hidden">
@@ -254,22 +266,38 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               className="flex-row items-center flex-1 mr-2 active:opacity-80"
             >
               <View className="relative mr-3">
-                {isOnline && (
+                {!isGroup && isOnline && (
                   <View className="absolute -inset-1 rounded-full bg-emerald-500/20 blur-md" />
                 )}
 
                 <View
                   className={`rounded-full p-0.5 ${
-                    isOnline
+                    isGroup
                       ? isDark
-                        ? "bg-gradient-to-br from-emerald-400 to-teal-500"
-                        : "bg-gradient-to-br from-emerald-500 to-teal-600"
-                      : isDark
                         ? "bg-gray-700/50"
                         : "bg-gray-300/50"
+                      : isOnline
+                        ? isDark
+                          ? "bg-gradient-to-br from-emerald-400 to-teal-500"
+                          : "bg-gradient-to-br from-emerald-500 to-teal-600"
+                        : isDark
+                          ? "bg-gray-700/50"
+                          : "bg-gray-300/50"
                   }`}
                 >
-                  {hasAvatar ? (
+                  {isGroup ? (
+                    <View
+                      className={`w-10 h-10 rounded-full items-center justify-center ${
+                        isDark ? "bg-gray-700" : "bg-gray-200"
+                      }`}
+                    >
+                      <Ionicons
+                        name="people"
+                        size={20}
+                        color={isDark ? "#f9fafb" : "#111827"}
+                      />
+                    </View>
+                  ) : hasAvatar ? (
                     <Image
                       source={{ uri: participant.avatar }}
                       className="w-10 h-10 rounded-full"
@@ -291,7 +319,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   )}
                 </View>
 
-                {isOnline && (
+                {!isGroup && isOnline && (
                   <View className="absolute -bottom-0.5 -right-0.5">
                     <Animated.View
                       className="absolute inset-0 w-4 h-4 rounded-full bg-emerald-400/40"
@@ -323,7 +351,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   numberOfLines={1}
                   style={{ letterSpacing: -0.3 }}
                 >
-                  {participant?.name || "Chat"}
+                  {displayName}
                 </Text>
 
                 {isTyping ? (
@@ -336,11 +364,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 ) : (
                   <Text
                     className={`text-[13px] font-medium mt-0.5 ${
-                      isOnline
-                        ? "text-emerald-500"
-                        : isDark
+                      isGroup
+                        ? isDark
                           ? "text-gray-400"
                           : "text-gray-500"
+                        : isOnline
+                          ? "text-emerald-500"
+                          : isDark
+                            ? "text-gray-400"
+                            : "text-gray-500"
                     }`}
                     numberOfLines={1}
                   >
