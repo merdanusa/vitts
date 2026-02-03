@@ -115,10 +115,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       case "audio":
         return (
           <VoiceMessagePlayer
-            duration={45} // You can pass actual duration from message data
+            duration={message.duration || 0}
             isMyMessage={isMyMessage}
             isDark={isDark}
-            audioUrl={message.content}
+            audioUrl={message.mediaUrl || message.content}
           />
         );
 
