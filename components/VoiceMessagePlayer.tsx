@@ -1,3 +1,4 @@
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Pause, Play } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Text, TouchableOpacity, View } from "react-native";
@@ -17,8 +18,10 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(duration);
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const playerRef = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
+  const positionUpdateInterval = useRef<NodeJS.Timeout | null>(null);
 
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -26,51 +29,105 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const togglePlayPause = () => {
-    if (isPlaying) {
-      // Pause logic
-      setIsPlaying(false);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    } else {
-      // Play logic
-      setIsPlaying(true);
-      // Simulate playback
-      intervalRef.current = setInterval(() => {
-        setCurrentTime((prev) => {
-          if (prev >= duration) {
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current);
-              intervalRef.current = null;
-            }
-            setIsPlaying(false);
-            return 0;
-          }
-          return prev + 0.1;
+  // Initialize audio player
+  useEffect(() => {
+    if (!audioUrl) return;
+
+    const initPlayer = async () => {
+      try {
+        await setAudioModeAsync({
+          playsInSilentMode: true,
         });
-      }, 100);
+
+        const player = createAudioPlayer(audioUrl);
+        playerRef.current = player;
+
+        // Set up event listeners
+        player.playing = false;
+
+      } catch (error) {
+        console.error("[VoicePlayer] Failed to initialize:", error);
+      }
+    };
+
+    initPlayer();
+
+    return () => {
+      // Cleanup
+      if (positionUpdateInterval.current) {
+        clearInterval(positionUpdateInterval.current);
+      }
+      if (playerRef.current) {
+        try {
+          playerRef.current.pause();
+        } catch (error) {
+          console.error("[VoicePlayer] Cleanup error:", error);
+        }
+      }
+    };
+  }, [audioUrl]);
+
+  const updatePosition = async () => {
+    if (!playerRef.current) return;
+
+    try {
+      const position = playerRef.current.currentTime;
+      const duration = playerRef.current.duration || audioDuration;
+
+      setCurrentTime(position);
+      setAudioDuration(duration);
+
+      // Check if playback finished
+      if (position >= duration && isPlaying) {
+        setIsPlaying(false);
+        setCurrentTime(0);
+        if (positionUpdateInterval.current) {
+          clearInterval(positionUpdateInterval.current);
+          positionUpdateInterval.current = null;
+        }
+      }
+    } catch (error) {
+      console.error("[VoicePlayer] Position update error:", error);
+    }
+  };
+
+  const togglePlayPause = async () => {
+    if (!playerRef.current || !audioUrl) {
+      console.warn("[VoicePlayer] No player or audio URL");
+      return;
+    }
+
+    try {
+      if (isPlaying) {
+        // Pause
+        playerRef.current.pause();
+        setIsPlaying(false);
+
+        if (positionUpdateInterval.current) {
+          clearInterval(positionUpdateInterval.current);
+          positionUpdateInterval.current = null;
+        }
+      } else {
+        // Play
+        await playerRef.current.play();
+        setIsPlaying(true);
+
+        // Start position updates
+        positionUpdateInterval.current = setInterval(updatePosition, 100);
+      }
+    } catch (error) {
+      console.error("[VoicePlayer] Play/Pause error:", error);
+      setIsPlaying(false);
     }
   };
 
   useEffect(() => {
     Animated.timing(progressAnim, {
-      toValue: currentTime / duration,
+      toValue: audioDuration > 0 ? currentTime / audioDuration : 0,
       duration: 100,
       useNativeDriver: false,
     }).start();
-  }, [currentTime, duration]);
-
-  // Clean up interval on unmount
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, []);
+  }, [currentTime, audioDuration]);
 
   const iconColor = isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000";
   const waveColor = isMyMessage
@@ -128,7 +185,7 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
               8, 16, 12, 20, 14, 24, 10, 18, 22, 16, 12, 20, 14, 18, 10, 24, 16,
               12, 20, 14,
             ];
-            const progress = currentTime / duration;
+            const progress = audioDuration > 0 ? currentTime / audioDuration : 0;
             const isActive = index / 20 <= progress;
 
             return (
@@ -159,7 +216,7 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
           minWidth: 35,
         }}
       >
-        {formatDuration(isPlaying ? currentTime : duration)}
+        {formatDuration(isPlaying ? currentTime : audioDuration)}
       </Text>
     </View>
   );

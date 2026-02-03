@@ -1,10 +1,17 @@
-import { Audio } from "expo-av";
+import {
+  createAudioRecorder,
+  RecordingOptions,
+  AudioModule,
+  setAudioModeAsync,
+} from "expo-audio";
 import { useEffect, useRef, useState } from "react";
-import { Animated } from "react-native";
+import { Animated, Platform } from "react-native";
 
 export const useRecording = () => {
   const [isRecording, setIsRecording] = useState(false);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recorder, setRecorder] = useState<ReturnType<
+    typeof createAudioRecorder
+  > | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const recordingAnimation = useRef(new Animated.Value(1)).current;
   const durationInterval = useRef<NodeJS.Timeout | null>(null);
@@ -13,8 +20,8 @@ export const useRecording = () => {
     // Request permissions on mount
     (async () => {
       try {
-        const { status } = await Audio.requestPermissionsAsync();
-        if (status !== "granted") {
+        const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+        if (!granted) {
           console.warn("Audio recording permission not granted");
         }
       } catch (error) {
@@ -24,8 +31,8 @@ export const useRecording = () => {
 
     return () => {
       // Cleanup on unmount
-      if (recording) {
-        recording.stopAndUnloadAsync().catch(console.error);
+      if (recorder) {
+        recorder.stop().catch(console.error);
       }
       if (durationInterval.current) {
         clearInterval(durationInterval.current);
@@ -57,52 +64,37 @@ export const useRecording = () => {
 
   const startRecording = async () => {
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== "granted") {
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+      if (!granted) {
         console.error("Audio recording permission denied");
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const recordingOptions = {
-        isMeteringEnabled: true,
-        android: {
-          extension: ".m4a",
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: ".m4a",
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.HIGH,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {
-          mimeType: "audio/webm",
-          bitsPerSecond: 128000,
-        },
+      const recordingOptions: RecordingOptions = {
+        extension: ".m4a",
+        sampleRate: 44100,
+        numberOfChannels: 2,
+        bitRate: 128000,
+        ...(Platform.OS === "android" && {
+          outputFormat: "mpeg4",
+          audioEncoder: "aac",
+        }),
+        ...(Platform.OS === "ios" && {
+          outputFormat: "mpeg4aac",
+          audioEncoder: "aac",
+        }),
       };
 
       // Create and start recording
-      const { recording: newRecording } =
-        await Audio.Recording.createAsync(recordingOptions);
+      const newRecorder = createAudioRecorder(recordingOptions);
+      await newRecorder.record();
 
-      setRecording(newRecording);
+      setRecorder(newRecorder);
       setIsRecording(true);
       setRecordingDuration(0);
 
@@ -123,7 +115,7 @@ export const useRecording = () => {
     duration: number;
   } | null> => {
     try {
-      if (!recording) {
+      if (!recorder) {
         console.warn("[Recording] No active recording to stop");
         return null;
       }
@@ -131,22 +123,17 @@ export const useRecording = () => {
       console.log("[Recording] Stopping...");
 
       // Stop the recording
-      await recording.stopAndUnloadAsync();
-
-      // Reset audio mode
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
-      const uri = recording.getURI();
+      const uri = await recorder.stop();
       const duration = recordingDuration;
 
+      // Reset audio mode
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+
       // Clear state
-      setRecording(null);
+      setRecorder(null);
       setIsRecording(false);
 
       // Clear duration interval
@@ -161,7 +148,7 @@ export const useRecording = () => {
     } catch (error) {
       console.error("[Recording] Failed to stop:", error);
       setIsRecording(false);
-      setRecording(null);
+      setRecorder(null);
       return null;
     } finally {
       setRecordingDuration(0);
@@ -170,9 +157,9 @@ export const useRecording = () => {
 
   const cancelRecording = async () => {
     try {
-      if (recording) {
-        await recording.stopAndUnloadAsync();
-        setRecording(null);
+      if (recorder) {
+        await recorder.stop();
+        setRecorder(null);
       }
       setIsRecording(false);
       setRecordingDuration(0);
@@ -182,8 +169,8 @@ export const useRecording = () => {
         durationInterval.current = null;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
+      await setAudioModeAsync({
+        allowsRecording: false,
       });
 
       console.log("[Recording] Cancelled");
