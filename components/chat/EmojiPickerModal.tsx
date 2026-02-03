@@ -147,6 +147,7 @@ export const EmojiPickerModal: React.FC<EmojiPickerModalProps> = ({
       animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
+      presentationStyle="overFullScreen"
     >
       <View className="flex-1 justify-end">
         <Animated.View

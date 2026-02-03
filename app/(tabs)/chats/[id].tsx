@@ -468,7 +468,7 @@ const ChatDetailScreen = () => {
                 </SafeAreaView>
               </View>
             )}
-          </Animated.View>
+          </View>
 
           <View className="flex-1">
             <MessagesList
