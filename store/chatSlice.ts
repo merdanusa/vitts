@@ -1,5 +1,6 @@
 import { ChatListItem, Message } from "@/services/api";
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { createSelector } from "@reduxjs/toolkit";
 import { RootState } from "./index";
 
 export interface ChatState {
@@ -270,17 +271,20 @@ export const {
 } = chatSlice.actions;
 
 // Selectors
-export const selectChatList = (state: RootState): ChatListItem[] => {
-  return Object.values(state.chat.chats).sort((a, b) => {
-    const timeA = a.lastMessage?.time
-      ? new Date(a.lastMessage.time).getTime()
-      : 0;
-    const timeB = b.lastMessage?.time
-      ? new Date(b.lastMessage.time).getTime()
-      : 0;
-    return timeB - timeA; // Most recent first
-  });
-};
+export const selectChatList = createSelector(
+  [(state: RootState) => state.chat.chats],
+  (chats) => {
+    return Object.values(chats).sort((a, b) => {
+      const timeA = a.lastMessage?.time
+        ? new Date(a.lastMessage.time).getTime()
+        : 0;
+      const timeB = b.lastMessage?.time
+        ? new Date(b.lastMessage.time).getTime()
+        : 0;
+      return timeB - timeA; // Most recent first
+    });
+  },
+);
 
 export const selectChatById = (chatId: string) => (state: RootState) => {
   return state.chat.chats[chatId];

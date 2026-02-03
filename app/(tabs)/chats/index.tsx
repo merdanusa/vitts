@@ -113,7 +113,7 @@ const ChatsScreen = () => {
 
   const filteredChats = chats.filter(
     (chat) =>
-      chat.participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      chat.participant.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       chat.participant.login?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
