@@ -135,8 +135,9 @@ export const EmojiPickerModal: React.FC<EmojiPickerModalProps> = ({
   const handleEmojiPress = useCallback(
     (emoji: string) => {
       onSelect(emoji);
+      onClose();
     },
-    [onSelect],
+    [onSelect, onClose],
   );
 
   return (
@@ -156,8 +157,12 @@ export const EmojiPickerModal: React.FC<EmojiPickerModalProps> = ({
         </Animated.View>
 
         <Animated.View
-          className={`rounded-t-3xl h-[70%] shadow-2xl ${isDark ? "bg-neutral-900" : "bg-white"}`}
-          style={{ transform: [{ translateY: slideAnim }] }}
+          className={`rounded-t-3xl shadow-2xl ${isDark ? "bg-neutral-900" : "bg-white"}`}
+          style={{
+            transform: [{ translateY: slideAnim }],
+            height: SCREEN_HEIGHT * 0.65,
+            maxHeight: 500,
+          }}
         >
           <View className="items-center pt-3 pb-2">
             <View

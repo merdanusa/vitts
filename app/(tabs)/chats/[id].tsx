@@ -3,7 +3,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { X } from "lucide-react-native";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   Alert,
   Animated,
@@ -255,7 +255,13 @@ const ChatDetailScreen = () => {
 
     if (!result.canceled && result.assets[0]) {
       for (const asset of result.assets) {
-        await sendImage(asset.uri, id, setMessagesCompat, setUploading, flatListRef);
+        await sendImage(
+          asset.uri,
+          id,
+          setMessagesCompat,
+          setUploading,
+          flatListRef,
+        );
       }
     }
   };
@@ -360,7 +366,7 @@ const ChatDetailScreen = () => {
 
   // Get typing user IDs for groups
   const typingUserIds = isGroupChat
-    ? []  // TODO: Implement typing users array from Redux
+    ? [] // TODO: Implement typing users array from Redux
     : [];
 
   // Handle group info press
@@ -388,8 +394,8 @@ const ChatDetailScreen = () => {
         imageStyle={{ opacity: isDark ? 0.03 : 0.06 }}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={0}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           className="flex-1"
         >
           <Animated.View className="absolute top-0 left-0 right-0 z-50">
@@ -506,8 +512,14 @@ const ChatDetailScreen = () => {
             isRecording={isRecording}
             onChangeText={handleInputChange}
             onSend={handleSend}
-            onAttach={() => setShowAttachMenu(true)}
-            onEmoji={() => setShowEmojiPicker(true)}
+            onAttach={() => {
+              Keyboard.dismiss();
+              setTimeout(() => setShowAttachMenu(true), 100);
+            }}
+            onEmoji={() => {
+              Keyboard.dismiss();
+              setTimeout(() => setShowEmojiPicker(true), 100);
+            }}
             onStartRecording={startRecording}
             onStopRecording={handleStopRecording}
           />

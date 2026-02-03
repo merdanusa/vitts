@@ -194,8 +194,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
 
   const hasAvatar =
     participant?.avatar &&
-    participant.avatar !== "M" &&
-    participant.avatar !== "";
+    participant.avatar.length > 1 &&
+    participant.avatar.startsWith("http");
   const initials = participant ? getInitials(participant.name) : "";
 
   const getStatusText = () => {
