@@ -9,9 +9,11 @@ interface MessagesListProps {
   messages: Message[];
   currentUserId: string;
   isDark: boolean;
+  isGroupChat?: boolean;
   onLoadMore?: () => void;
   loadingMore?: boolean;
   hasMore?: boolean;
+  onMessageLongPress?: (message: Message) => void;
 }
 
 type ListItem =
@@ -24,9 +26,11 @@ export const MessagesList = forwardRef<FlatList, MessagesListProps>(
       messages,
       currentUserId,
       isDark,
+      isGroupChat = false,
       onLoadMore,
       loadingMore = false,
       hasMore = false,
+      onMessageLongPress,
     },
     ref,
   ) => {
@@ -85,10 +89,13 @@ export const MessagesList = forwardRef<FlatList, MessagesListProps>(
             isMyMessage={message.senderId === currentUserId}
             showTime={showTime}
             isDark={isDark}
+            isGroupChat={isGroupChat}
+            senderName={message.senderTitle}
+            onLongPress={onMessageLongPress ? () => onMessageLongPress(message) : undefined}
           />
         );
       },
-      [currentUserId, messages, isDark],
+      [currentUserId, messages, isDark, isGroupChat, onMessageLongPress],
     );
 
     const keyExtractor = useCallback((item: ListItem) => {

@@ -25,6 +25,7 @@ import { RootState } from "@/store";
 
 import { AttachmentModal } from "@/components/chat/AttachmentModal";
 import { ChatHeader } from "@/components/chat/ChatHeader";
+import { GroupChatHeader } from "@/components/chat/GroupChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { EmojiPickerModal } from "@/components/chat/EmojiPickerModal";
 import { LoadingView } from "@/components/chat/LoadingView";
@@ -354,6 +355,21 @@ const ChatDetailScreen = () => {
     (p: any) => p.id !== currentUserId,
   );
 
+  // Check if this is a group chat
+  const isGroupChat = chatData?.type === "group";
+
+  // Get typing user IDs for groups
+  const typingUserIds = isGroupChat
+    ? []  // TODO: Implement typing users array from Redux
+    : [];
+
+  // Handle group info press
+  const handleGroupInfoPress = () => {
+    if (isGroupChat) {
+      router.push(`/chats/group-info/${id}`);
+    }
+  };
+
   // Show loading screen until both data is loaded AND component is mounted
   if (loading || !isMounted) return <LoadingView isDark={isDark} />;
 
@@ -384,33 +400,65 @@ const ChatDetailScreen = () => {
                 className="overflow-hidden"
               >
                 <SafeAreaView edges={["top"]}>
-                  <ChatHeader
-                    isDark={isDark}
-                    participant={participant}
-                    isTyping={isTyping}
-                    initialIsOnline={participant?.isOnline}
-                    onBack={() => router.back()}
-                    onProfilePress={handleProfilePress}
-                    onVoiceCall={handleVoiceCall}
-                    onVideoCall={handleVideoCall}
-                    onMoreOptions={handleMoreOptions}
-                  />
+                  {isGroupChat ? (
+                    <GroupChatHeader
+                      isDark={isDark}
+                      groupName={chatData?.name || "Group"}
+                      groupAvatar={chatData?.avatar}
+                      participantCount={chatData?.participants?.length || 0}
+                      participants={chatData?.participants || []}
+                      typingUsers={typingUserIds}
+                      onBack={() => router.back()}
+                      onGroupInfoPress={handleGroupInfoPress}
+                      onVoiceCall={handleVoiceCall}
+                      onVideoCall={handleVideoCall}
+                      onMoreOptions={handleMoreOptions}
+                    />
+                  ) : (
+                    <ChatHeader
+                      isDark={isDark}
+                      participant={participant}
+                      isTyping={isTyping}
+                      initialIsOnline={participant?.isOnline}
+                      onBack={() => router.back()}
+                      onProfilePress={handleProfilePress}
+                      onVoiceCall={handleVoiceCall}
+                      onVideoCall={handleVideoCall}
+                      onMoreOptions={handleMoreOptions}
+                    />
+                  )}
                 </SafeAreaView>
               </BlurView>
             ) : (
               <View className={isDark ? "bg-[#121212]/97" : "bg-white/97"}>
                 <SafeAreaView edges={["top"]}>
-                  <ChatHeader
-                    isDark={isDark}
-                    participant={participant}
-                    isTyping={isTyping}
-                    initialIsOnline={participant?.isOnline}
-                    onBack={() => router.back()}
-                    onProfilePress={handleProfilePress}
-                    onVoiceCall={handleVoiceCall}
-                    onVideoCall={handleVideoCall}
-                    onMoreOptions={handleMoreOptions}
-                  />
+                  {isGroupChat ? (
+                    <GroupChatHeader
+                      isDark={isDark}
+                      groupName={chatData?.name || "Group"}
+                      groupAvatar={chatData?.avatar}
+                      participantCount={chatData?.participants?.length || 0}
+                      participants={chatData?.participants || []}
+                      typingUsers={typingUserIds}
+                      onBack={() => router.back()}
+                      onGroupInfoPress={handleGroupInfoPress}
+                      onVoiceCall={handleVoiceCall}
+                      onVideoCall={handleVideoCall}
+                      onMoreOptions={handleMoreOptions}
+                    />
+                  ) : (
+                    <ChatHeader
+                      isDark={isDark}
+                      participant={participant}
+                      isTyping={isTyping}
+                      initialIsOnline={participant?.isOnline}
+                      onBack={() => router.back()}
+                      onProfilePress={handleProfilePress}
+                      onVoiceCall={handleVoiceCall}
+                      onVideoCall={handleVideoCall}
+                      onMoreOptions={handleMoreOptions}
+                    />
+                  )}
                 </SafeAreaView>
               </View>
             )}
@@ -422,9 +470,11 @@ const ChatDetailScreen = () => {
               messages={messages}
               currentUserId={currentUserId}
               isDark={isDark}
+              isGroupChat={isGroupChat}
               onLoadMore={loadMoreMessages}
               loadingMore={loadingMore}
               hasMore={hasMore}
+              onMessageLongPress={handleMessageLongPress}
             />
           </View>
 

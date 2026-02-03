@@ -2,7 +2,7 @@ import { Message } from "@/services/api";
 import { formatTime } from "@/utils/helpers";
 import { File } from "lucide-react-native";
 import React, { useEffect, useRef } from "react";
-import { Animated, Image, Text, View } from "react-native";
+import { Animated, Image, Pressable, Text, View } from "react-native";
 import { VoiceMessagePlayer } from "@/components/VoiceMessagePlayer";
 
 interface MessageItemProps {
@@ -10,7 +10,17 @@ interface MessageItemProps {
   isMyMessage: boolean;
   showTime: boolean;
   isDark: boolean;
+  isGroupChat?: boolean;
+  senderName?: string;
+  onLongPress?: () => void;
 }
+
+// Utility function to generate consistent colors for user IDs
+const getUserColor = (userId: string): string => {
+  const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+  const hash = userId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[hash % colors.length];
+};
 
 const isOnlyEmoji = (text: string): boolean => {
   if (!text || text.length > 10) return false;
@@ -24,6 +34,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   isMyMessage,
   showTime,
   isDark,
+  isGroupChat = false,
+  senderName,
+  onLongPress,
 }) => {
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -146,25 +159,47 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         transform: [{ scale: scaleAnim }],
       }}
     >
-      <View
-        style={{
-          backgroundColor:
-            message.type === "image" || isLargeEmoji
-              ? "transparent"
-              : isMyMessage
-                ? "#007AFF"
-                : isDark
-                  ? "#262626"
-                  : "#f3f4f6",
-          maxWidth: isLargeEmoji ? undefined : "80%",
-          borderRadius: 18,
-          paddingHorizontal: message.type === "image" || isLargeEmoji ? 0 : 12,
-          paddingVertical: message.type === "image" || isLargeEmoji ? 0 : 8,
-          overflow: "hidden",
-        }}
+      {/* Show sender name for non-own messages in group chats */}
+      {isGroupChat && !isMyMessage && senderName && (
+        <Text
+          style={{
+            fontSize: 12,
+            fontWeight: "600",
+            color: getUserColor(message.senderId),
+            marginBottom: 4,
+            marginLeft: 4,
+          }}
+        >
+          {senderName}
+        </Text>
+      )}
+
+      <Pressable
+        onLongPress={onLongPress}
+        delayLongPress={200}
+        disabled={!onLongPress}
       >
-        {renderContent()}
-      </View>
+        <View
+          style={{
+            backgroundColor:
+              message.type === "image" || isLargeEmoji
+                ? "transparent"
+                : isMyMessage
+                  ? "#007AFF"
+                  : isDark
+                    ? "#262626"
+                    : "#f3f4f6",
+            maxWidth: isLargeEmoji ? undefined : "80%",
+            borderRadius: 18,
+            paddingHorizontal: message.type === "image" || isLargeEmoji ? 0 : 12,
+            paddingVertical: message.type === "image" || isLargeEmoji ? 0 : 8,
+            overflow: "hidden",
+          }}
+        >
+          {renderContent()}
+        </View>
+      </Pressable>
+
       {showTime && (
         <Text
           style={{
