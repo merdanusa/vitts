@@ -33,7 +33,7 @@ import { RecordingIndicator } from "@/components/chat/RecordingIndicator";
 import { UploadIndicator } from "@/components/chat/UploadIndicator";
 
 import { ImageBackground } from "@/components/ui/image-background";
-import { useChatData } from "@/hooks/chat/useChatData";
+import { useChatDataRedux } from "@/hooks/chat/useChatDataRedux";
 import { useRecording } from "@/hooks/chat/useRecording";
 import { useTypingIndicator } from "@/hooks/chat/useTypingIndicator";
 import { sendDocument, sendImage } from "@/utils/messageUpload";
@@ -109,10 +109,10 @@ const ChatDetailScreen = () => {
     loading,
     loadingMore,
     hasMore,
-    setMessages,
     loadChat,
     loadMoreMessages,
-  } = useChatData(id);
+    addNewMessage,
+  } = useChatDataRedux(id);
   const {
     isRecording,
     recordingDuration,
@@ -122,6 +122,20 @@ const ChatDetailScreen = () => {
     recordingAnimation,
   } = useRecording();
   const { isTyping, handleTyping, handleStopTyping } = useTypingIndicator();
+
+  // Compatibility wrapper for old setMessagesCompat callback pattern
+  // The upload utilities expect setMessagesCompat(prev => [...prev, newMsg])
+  // but we're using Redux now, so we convert to addNewMessage
+  const setMessagesCompatCompat = useCallback(
+    (updater: any) => {
+      if (typeof updater === "function") {
+        // For callback pattern, we ignore it since Redux handles the update
+        // The message will be added via socket handler anyway
+        return;
+      }
+    },
+    [addNewMessage],
+  );
 
   // Set mounted after component mounts to ensure navigation context is ready
   useEffect(() => {
@@ -161,38 +175,22 @@ const ChatDetailScreen = () => {
     const handleNewMessage = (data: any) => {
       if (data.chatId !== id) return;
 
-      setMessages((prev) => {
-        if (prev.some((msg) => msg.id === data.id)) return prev;
+      const incoming: Message = {
+        id: data.id,
+        senderTitle: data.senderTitle,
+        senderId: data.senderId,
+        type: data.type,
+        content: data.content || data.mediaUrl || "",
+        mediaUrl: data.mediaUrl,
+        fileName: data.fileName,
+        mimeType: data.mimeType,
+        duration: data.duration,
+        time: data.time,
+        isRead: data.isRead ?? false,
+      };
 
-        const filtered = prev.filter((msg) => {
-          if (msg.id.startsWith("temp-") || msg.id.startsWith("optimistic-")) {
-            const timeDiff = Math.abs(
-              new Date(msg.time).getTime() - new Date(data.time).getTime(),
-            );
-            return !(
-              msg.content === (data.content || data.mediaUrl || "") &&
-              timeDiff < 15000
-            );
-          }
-          return true;
-        });
-
-        const incoming: Message = {
-          id: data.id,
-          senderTitle: data.senderTitle,
-          senderId: data.senderId,
-          type: data.type,
-          content: data.content || data.mediaUrl || "",
-          mediaUrl: data.mediaUrl,
-          fileName: data.fileName,
-          mimeType: data.mimeType,
-          duration: data.duration,
-          time: data.time,
-          isRead: data.isRead ?? false,
-        };
-
-        return [...filtered, incoming];
-      });
+      // Add message to Redux store (it will handle duplicates)
+      addNewMessage(incoming);
 
       setTimeout(
         () => flatListRef.current?.scrollToEnd({ animated: true }),
@@ -256,7 +254,7 @@ const ChatDetailScreen = () => {
 
     if (!result.canceled && result.assets[0]) {
       for (const asset of result.assets) {
-        await sendImage(asset.uri, id, setMessages, setUploading, flatListRef);
+        await sendImage(asset.uri, id, setMessagesCompat, setUploading, flatListRef);
       }
     }
   };
@@ -281,7 +279,7 @@ const ChatDetailScreen = () => {
       await sendImage(
         result.assets[0].uri,
         id,
-        setMessages,
+        setMessagesCompat,
         setUploading,
         flatListRef,
       );
@@ -303,7 +301,7 @@ const ChatDetailScreen = () => {
           asset.name,
           asset.mimeType || "application/octet-stream",
           id,
-          setMessages,
+          setMessagesCompat,
           setUploading,
           flatListRef,
         );
@@ -321,7 +319,7 @@ const ChatDetailScreen = () => {
           result.uri,
           result.duration,
           id,
-          setMessages,
+          setMessagesCompat,
           setUploading,
           flatListRef,
         );

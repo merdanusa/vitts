@@ -3,7 +3,7 @@ import { GluestackUIProvider } from "@/components/ui/gluestack-ui-provider";
 import "@/global.css";
 import { useAppTheme } from "@/hooks/useAppTheme.ts";
 import { bootstrapAuth } from "@/services/authBootstrap";
-import { store } from "@/store";
+import { persistor, store } from "@/store";
 import { useAppDispatch } from "@/store/hooks";
 import { updateSystemTheme } from "@/store/themeSlice";
 import { Stack } from "expo-router";
@@ -12,6 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { Appearance } from "react-native";
 import { Provider } from "react-redux";
+import { PersistGate } from "redux-persist/integration/react";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -69,7 +70,9 @@ function RootLayoutContent() {
 export default function RootLayout() {
   return (
     <Provider store={store}>
-      <RootLayoutContent />
+      <PersistGate loading={null} persistor={persistor}>
+        <RootLayoutContent />
+      </PersistGate>
     </Provider>
   );
 }

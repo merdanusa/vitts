@@ -3,6 +3,13 @@ import { DebugUserInfo } from "@/components/screens/DebugUserInfo";
 import { ChatListItem, getCurrentUser, getMyChats } from "@/services/api";
 import { socketService } from "@/services/socket";
 import { RootState } from "@/store";
+import {
+  selectChatList,
+  selectLoadingChats,
+  setChats,
+  setLoadingChats,
+} from "@/store/chatSlice";
+import { useAppDispatch } from "@/store/hooks";
 import { useRouter } from "expo-router";
 import { Search, UserPlus } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -31,10 +38,11 @@ const getInitials = (name: string): string => {
 
 const ChatsScreen = () => {
   const isDark = useSelector((state: RootState) => state.theme.isDark);
+  const chats = useSelector(selectChatList);
+  const loading = useSelector(selectLoadingChats);
+  const dispatch = useAppDispatch();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [chats, setChats] = useState<ChatListItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [showDebug, setShowDebug] = useState(false);
@@ -43,16 +51,17 @@ const ChatsScreen = () => {
 
   const loadChats = async () => {
     try {
+      dispatch(setLoadingChats(true));
       const [chatsData, userData] = await Promise.all([
         getMyChats(),
         getCurrentUser(),
       ]);
-      setChats(chatsData);
+      dispatch(setChats(chatsData));
       setCurrentUserId(userData.id);
     } catch (error) {
       console.error("Failed to load chats:", error);
     } finally {
-      setLoading(false);
+      dispatch(setLoadingChats(false));
       setRefreshing(false);
     }
   };

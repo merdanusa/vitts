@@ -1,6 +1,9 @@
+import { useSocketReduxBridge } from "@/hooks/chat/useSocketReduxBridge";
+import { socketService } from "@/services/socket";
 import { RootState } from "@/store";
 import { Ionicons } from "@expo/vector-icons";
 import { Redirect, Tabs } from "expo-router";
+import { useEffect } from "react";
 import { Image, View } from "react-native";
 import { useSelector } from "react-redux";
 
@@ -10,6 +13,20 @@ export default function TabLayout() {
   );
   const isDark = useSelector((state: RootState) => state.theme.isDark);
   const userAvatar = useSelector((state: RootState) => state.user.avatar);
+  const currentUserId = useSelector((state: RootState) => state.user.id);
+
+  // Initialize socket-to-Redux bridge for real-time updates
+  useSocketReduxBridge(currentUserId);
+
+  // Connect socket when tabs mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      socketService.connect();
+    }
+    return () => {
+      // Optionally disconnect on unmount (usually not needed)
+    };
+  }, [isAuthenticated]);
 
   if (!isAuthenticated) {
     return <Redirect href="/auth" />;
