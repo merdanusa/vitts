@@ -74,7 +74,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const insets = useSafeAreaInsets();
 
   const paddingBottom =
-    Platform.OS === "ios" && keyboardVisible ? 8 : insets.bottom + 8;
+    Platform.OS === "ios"
+      ? keyboardVisible
+        ? 8
+        : Math.max(insets.bottom, 8)
+      : 12;
 
   return (
     <View className="relative overflow-hidden">
