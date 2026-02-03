@@ -57,14 +57,12 @@ export const useRecording = () => {
 
   const startRecording = async () => {
     try {
-      // Request permissions
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== "granted") {
         console.error("Audio recording permission denied");
         return;
       }
 
-      // Configure audio mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
@@ -73,7 +71,6 @@ export const useRecording = () => {
         playThroughEarpieceAndroid: false,
       });
 
-      // Define recording options based on platform
       const recordingOptions = {
         isMeteringEnabled: true,
         android: {

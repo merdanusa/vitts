@@ -19,7 +19,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
-import { Message } from "@/services/api";
+import { Message, sendVoiceMessage } from "@/services/api";
 import { socketService } from "@/services/socket";
 import { RootState } from "@/store";
 
@@ -37,7 +37,6 @@ import { useChatData } from "@/hooks/chat/useChatData";
 import { useRecording } from "@/hooks/chat/useRecording";
 import { useTypingIndicator } from "@/hooks/chat/useTypingIndicator";
 import { sendDocument, sendImage } from "@/utils/messageUpload";
-import { sendVoiceMessage } from "@/services/api";
 
 const ReplyPreview: React.FC<{
   message: Message;
@@ -103,8 +102,17 @@ const ChatDetailScreen = () => {
 
   const flatListRef = useRef<FlatList>(null);
 
-  const { messages, chatData, currentUserId, loading, setMessages, loadChat } =
-    useChatData(id);
+  const {
+    messages,
+    chatData,
+    currentUserId,
+    loading,
+    loadingMore,
+    hasMore,
+    setMessages,
+    loadChat,
+    loadMoreMessages,
+  } = useChatData(id);
   const {
     isRecording,
     recordingDuration,
@@ -416,11 +424,9 @@ const ChatDetailScreen = () => {
               messages={messages}
               currentUserId={currentUserId}
               isDark={isDark}
-              onMessageLongPress={handleMessageLongPress}
-              contentContainerStyle={{
-                paddingTop: Platform.OS === "ios" ? 110 : 100,
-                paddingBottom: 16,
-              }}
+              onLoadMore={loadMoreMessages}
+              loadingMore={loadingMore}
+              hasMore={hasMore}
             />
           </View>
 

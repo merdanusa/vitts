@@ -23,6 +23,7 @@ const TypingIndicator: React.FC<{ isDark: boolean }> = ({ isDark }) => {
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     const createDotAnimation = (animValue: Animated.Value, delay: number) => {
@@ -45,14 +46,24 @@ const TypingIndicator: React.FC<{ isDark: boolean }> = ({ isDark }) => {
       );
     };
 
-    const animations = Animated.parallel([
+    animationRef.current = Animated.parallel([
       createDotAnimation(dot1, 0),
       createDotAnimation(dot2, 150),
       createDotAnimation(dot3, 300),
     ]);
 
-    animations.start();
-    return () => animations.stop();
+    animationRef.current.start();
+
+    return () => {
+      // Clean up animation on unmount
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+      // Reset animated values
+      dot1.setValue(0);
+      dot2.setValue(0);
+      dot3.setValue(0);
+    };
   }, []);
 
   return (

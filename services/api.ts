@@ -378,9 +378,28 @@ export interface FullChat {
   messages: Message[];
 }
 
-export const getChatById = async (chatId: string): Promise<FullChat> => {
-  console.log("[CHAT] Loading chat:", chatId);
-  const res = await api.get<FullChat>(`/api/chats/${chatId}`);
+export interface PaginationOptions {
+  limit?: number;
+  before?: string;
+}
+
+export interface FullChatWithPagination extends FullChat {
+  hasMore?: boolean;
+}
+
+export const getChatById = async (
+  chatId: string,
+  options?: PaginationOptions,
+): Promise<FullChatWithPagination> => {
+  console.log("[CHAT] Loading chat:", chatId, "options:", options);
+  const params = new URLSearchParams();
+  if (options?.limit) params.append("limit", options.limit.toString());
+  if (options?.before) params.append("before", options.before);
+
+  const queryString = params.toString();
+  const url = `/api/chats/${chatId}${queryString ? `?${queryString}` : ""}`;
+
+  const res = await api.get<FullChatWithPagination>(url);
   return res.data;
 };
 

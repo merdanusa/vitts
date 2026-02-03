@@ -79,7 +79,6 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-          {/* Recording dot with pulse animation */}
           <Animated.View
             style={{
               width: 12,
@@ -91,7 +90,6 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({
             }}
           />
 
-          {/* Waveform animation */}
           <View
             style={{
               flexDirection: "row",
@@ -115,7 +113,6 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({
             ))}
           </View>
 
-          {/* Duration timer */}
           <Text
             style={{
               color: isDark ? "#ffffff" : "#000000",
@@ -129,7 +126,6 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          {/* Cancel button */}
           {onCancel && (
             <TouchableOpacity
               activeOpacity={0.7}
@@ -157,7 +153,6 @@ export const RecordingIndicator: React.FC<RecordingIndicatorProps> = ({
             </TouchableOpacity>
           )}
 
-          {/* Send button */}
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={onStop}

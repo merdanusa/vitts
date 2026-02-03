@@ -9,6 +9,7 @@
   class SocketService {
     private socket: Socket | null = null;
     private listeners: Map<string, Set<Function>> = new Map();
+    private socketListeners: Map<string, Map<Function, Function>> = new Map();
 
     async connect() {
       if (this.socket?.connected) {
@@ -67,37 +68,34 @@
     private setupInternalListeners() {
       if (!this.socket) return;
 
-      this.socket.on("newMessage", (data) => {
-        this.emit("newMessage", data);
-      });
+      const events = [
+        "newMessage",
+        "userTyping",
+        "userStopTyping",
+        "messagesRead",
+        "messageReactionUpdated",
+        "userOnlineStatus",
+        "chatUpdated",
+      ];
 
-      this.socket.on("userTyping", (data) => {
-        this.emit("userTyping", data);
-      });
-
-      this.socket.on("userStopTyping", (data) => {
-        this.emit("userStopTyping", data);
-      });
-
-      this.socket.on("messagesRead", (data) => {
-        this.emit("messagesRead", data);
-      });
-
-      this.socket.on("messageReactionUpdated", (data) => {
-        this.emit("messageReactionUpdated", data);
-      });
-
-      this.socket.on("userOnlineStatus", (data) => {
-        this.emit("userOnlineStatus", data);
-      });
-
-      this.socket.on("chatUpdated", (data) => {
-        this.emit("chatUpdated", data);
+      events.forEach((event) => {
+        const handler = (data: any) => {
+          this.emit(event, data);
+        };
+        this.socket!.on(event, handler);
       });
     }
 
     disconnect() {
       if (this.socket) {
+        // Clean up all socket listeners
+        this.socketListeners.forEach((listenerMap, event) => {
+          listenerMap.forEach((socketListener) => {
+            this.socket!.off(event, socketListener as any);
+          });
+        });
+        this.socketListeners.clear();
+
         this.socket.disconnect();
         this.socket = null;
         this.listeners.clear();
@@ -106,14 +104,39 @@
     }
 
     on(event: string, callback: Function) {
+      // Add to local listener map
       if (!this.listeners.has(event)) {
         this.listeners.set(event, new Set());
       }
       this.listeners.get(event)?.add(callback);
+
+      // Track socket listener for proper cleanup
+      if (!this.socketListeners.has(event)) {
+        this.socketListeners.set(event, new Map());
+      }
+
+      // Store the reference to the callback for removal later
+      const listenerMap = this.socketListeners.get(event)!;
+      listenerMap.set(callback, callback);
     }
 
     off(event: string, callback: Function) {
+      // Remove from local listener map
       this.listeners.get(event)?.delete(callback);
+
+      // Remove socket listener reference
+      const listenerMap = this.socketListeners.get(event);
+      if (listenerMap) {
+        listenerMap.delete(callback);
+        if (listenerMap.size === 0) {
+          this.socketListeners.delete(event);
+        }
+      }
+
+      // If no more listeners for this event, clean up completely
+      if (this.listeners.get(event)?.size === 0) {
+        this.listeners.delete(event);
+      }
     }
 
     private emit(event: string, data: any) {

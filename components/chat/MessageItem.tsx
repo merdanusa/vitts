@@ -1,8 +1,9 @@
 import { Message } from "@/services/api";
 import { formatTime } from "@/utils/helpers";
-import { File, Mic } from "lucide-react-native";
+import { File } from "lucide-react-native";
 import React, { useEffect, useRef } from "react";
 import { Animated, Image, Text, View } from "react-native";
+import { VoiceMessagePlayer } from "@/components/VoiceMessagePlayer";
 
 interface MessageItemProps {
   message: Message;
@@ -25,14 +26,23 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   isDark,
 }) => {
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
-    Animated.spring(scaleAnim, {
+    animationRef.current = Animated.spring(scaleAnim, {
       toValue: 1,
       tension: 80,
       friction: 7,
       useNativeDriver: true,
-    }).start();
+    });
+    animationRef.current.start();
+
+    return () => {
+      // Clean up animation on unmount
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+    };
   }, []);
 
   const renderContent = () => {
@@ -91,42 +101,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({
       case "voice":
       case "audio":
         return (
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingVertical: 4,
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: isMyMessage
-                  ? "rgba(255, 255, 255, 0.2)"
-                  : isDark
-                    ? "rgba(255, 255, 255, 0.2)"
-                    : "rgba(0, 0, 0, 0.1)",
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                alignItems: "center",
-                justifyContent: "center",
-                marginRight: 10,
-              }}
-            >
-              <Mic
-                size={18}
-                color={isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000"}
-              />
-            </View>
-            <Text
-              style={{
-                color: isMyMessage ? "#ffffff" : isDark ? "#ffffff" : "#000000",
-                fontSize: 14,
-              }}
-            >
-              Voice message
-            </Text>
-          </View>
+          <VoiceMessagePlayer
+            duration={45} // You can pass actual duration from message data
+            isMyMessage={isMyMessage}
+            isDark={isDark}
+            audioUrl={message.content}
+          />
         );
 
       default:
