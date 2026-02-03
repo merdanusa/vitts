@@ -398,7 +398,7 @@ const ChatDetailScreen = () => {
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           className="flex-1"
         >
-          <Animated.View className="absolute top-0 left-0 right-0 z-50">
+          <View className="absolute top-0 left-0 right-0 z-50">
             {Platform.OS === "ios" ? (
               <BlurView
                 intensity={isDark ? 80 : 90}

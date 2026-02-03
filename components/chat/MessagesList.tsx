@@ -132,14 +132,17 @@ export const MessagesList = forwardRef<FlatList, MessagesListProps>(
         data={listData}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        contentContainerStyle={{ paddingVertical: 12 }}
+        contentContainerStyle={{
+          paddingTop: 100,
+          paddingBottom: 12,
+          paddingHorizontal: 8,
+        }}
         inverted={true}
         showsVerticalScrollIndicator={false}
         removeClippedSubviews={true}
         maxToRenderPerBatch={15}
         updateCellsBatchingPeriod={50}
         windowSize={15}
-        className="mt-20"
         ListFooterComponent={renderListFooter}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
