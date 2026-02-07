@@ -482,6 +482,21 @@ export const createOrGetChat = async (
   return res.data;
 };
 
+export interface CreateGroupPayload {
+  name: string;
+  description?: string;
+  avatar?: string;
+  participantIds: string[];
+}
+
+export const createGroup = async (
+  data: CreateGroupPayload,
+): Promise<FullChat> => {
+  console.log("[CHAT] Creating group:", data.name);
+  const res = await api.post<FullChat>("/api/chats/create-group", data);
+  return res.data;
+};
+
 export const deleteChat = async (
   chatId: string,
 ): Promise<{ message: string }> => {

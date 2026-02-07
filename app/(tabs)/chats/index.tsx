@@ -1,6 +1,7 @@
 import { ChatListItem as ChatListItemComponent } from "@/components/chat/ChatListItem";
+import { CreateGroupModal } from "@/components/chat/CreateGroupModal";
 import { DebugUserInfo } from "@/components/screens/DebugUserInfo";
-import { ChatListItem, getCurrentUser, getMyChats } from "@/services/api";
+import { ChatListItem, createGroup, getCurrentUser, getMyChats } from "@/services/api";
 import { socketService } from "@/services/socket";
 import { RootState } from "@/store";
 import {
@@ -11,7 +12,7 @@ import {
 } from "@/store/chatSlice";
 import { useAppDispatch } from "@/store/hooks";
 import { useRouter } from "expo-router";
-import { Search, UserPlus } from "lucide-react-native";
+import { Search, UserPlus, Users } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -46,6 +47,7 @@ const ChatsScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [showDebug, setShowDebug] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const appState = useRef(AppState.currentState);
 
@@ -111,11 +113,20 @@ const ChatsScreen = () => {
     loadChats();
   }, []);
 
-  const filteredChats = chats.filter(
-    (chat) =>
-      chat.participant.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      chat.participant.login?.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredChats = chats.filter((chat) => {
+    const query = searchQuery.toLowerCase();
+    if (chat.type === "group") {
+      return (
+        chat.name?.toLowerCase().includes(query) ||
+        chat.participant.name?.toLowerCase().includes(query) ||
+        chat.participant.login?.toLowerCase().includes(query)
+      );
+    }
+    return (
+      chat.participant.name?.toLowerCase().includes(query) ||
+      chat.participant.login?.toLowerCase().includes(query)
+    );
+  });
 
   const formatTime = useCallback((timeString: string) => {
     const messageDate = new Date(timeString);
@@ -181,6 +192,20 @@ const ChatsScreen = () => {
   const handleContactsPress = useCallback(() => {
     router.push("/contacts");
   }, [router]);
+
+  const handleCreateGroup = useCallback(
+    async (data: {
+      name: string;
+      description?: string;
+      avatar?: string;
+      participantIds: string[];
+    }) => {
+      const newChat = await createGroup(data);
+      loadChats();
+      router.push(`/chats/group/${newChat.id}`);
+    },
+    [router],
+  );
 
   const renderChatItem = useCallback(
     ({ item, index }: { item: ChatListItem; index: number }) => {
@@ -266,10 +291,16 @@ const ChatsScreen = () => {
             />
             <Text
               style={{ color: isDark ? "#ffffff" : "#000000" }}
-              className="text-3xl font-bold"
+              className="text-3xl font-bold flex-1"
             >
               Vitts
             </Text>
+            <TouchableOpacity
+              onPress={() => setShowCreateGroup(true)}
+              style={{ padding: 8 }}
+            >
+              <Users size={24} color={isDark ? "#ffffff" : "#000000"} />
+            </TouchableOpacity>
           </View>
 
           <View className="relative">
@@ -354,6 +385,14 @@ const ChatsScreen = () => {
         >
           <UserPlus size={24} color="#ffffff" />
         </TouchableOpacity>
+
+        <CreateGroupModal
+          visible={showCreateGroup}
+          isDark={isDark}
+          currentUserId={currentUserId}
+          onClose={() => setShowCreateGroup(false)}
+          onCreateGroup={handleCreateGroup}
+        />
       </View>
     </SafeAreaView>
   );

@@ -121,6 +121,7 @@ export const BottomSheetPortal = ({
       ref={bottomSheetRef}
       snapPoints={snapPoints}
       index={-1}
+      enableDynamicSizing={false}
       backdropComponent={BackDrop}
       onChange={handleSheetChanges}
       handleComponent={DragIndicator}

@@ -271,6 +271,7 @@ export const EmojiPickerModal: React.FC<EmojiPickerModalProps> = ({
       ref={sheetRef}
       index={0}
       snapPoints={snapPoints}
+      enableDynamicSizing={false}
       onChange={handleSheetChange}
       enablePanDownToClose
       backdropComponent={renderBackdrop}

@@ -41,10 +41,6 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
 
         const player = createAudioPlayer(audioUrl);
         playerRef.current = player;
-
-        // Set up event listeners
-        player.playing = false;
-
       } catch (error) {
         console.error("[VoicePlayer] Failed to initialize:", error);
       }

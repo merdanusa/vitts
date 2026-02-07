@@ -5,7 +5,13 @@
       "Bash(tree:*)",
       "Bash(npx expo install:*)",
       "Bash(npx tsc:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(node_modules/@gorhom/bottom-sheet/package.json)",
+      "Bash(npm view:*)",
+      "Bash(findstr:*)",
+      "Bash(npm install)"
     ]
   }
 }
