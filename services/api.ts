@@ -346,6 +346,10 @@ export interface LastMessage {
 
 export interface ChatListItem {
   id: string;
+  type?: "direct" | "group";
+  name?: string;
+  avatar?: string;
+  participants?: Participant[];
   participant: Participant;
   lastMessage: LastMessage | null;
 }
@@ -374,6 +378,9 @@ export interface Message {
 
 export interface FullChat {
   id: string;
+  type?: "direct" | "group";
+  name?: string;
+  avatar?: string;
   participants: Participant[];
   messages: Message[];
 }

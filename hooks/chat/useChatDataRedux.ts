@@ -11,16 +11,23 @@ import {
   setMessages,
 } from "@/store/chatSlice";
 import { useAppDispatch } from "@/store/hooks";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Alert } from "react-native";
 import { useSelector } from "react-redux";
 
 export const useChatDataRedux = (chatId: string) => {
   const dispatch = useAppDispatch();
-  const messages = useSelector(selectChatMessages(chatId));
-  const loadingMore = useSelector(selectLoadingMessages(chatId));
-  const hasMore = useSelector(selectHasMoreMessages(chatId));
-  const chatData = useSelector(selectChatById(chatId));
+
+  // Memoize selector instances to avoid creating new functions each render
+  const messagesSelector = useMemo(() => selectChatMessages(chatId), [chatId]);
+  const loadingSelector = useMemo(() => selectLoadingMessages(chatId), [chatId]);
+  const hasMoreSelector = useMemo(() => selectHasMoreMessages(chatId), [chatId]);
+  const chatSelector = useMemo(() => selectChatById(chatId), [chatId]);
+
+  const messages = useSelector(messagesSelector);
+  const loadingMore = useSelector(loadingSelector);
+  const hasMore = useSelector(hasMoreSelector);
+  const chatData = useSelector(chatSelector);
 
   const [currentUserId, setCurrentUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);

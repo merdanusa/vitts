@@ -148,6 +148,7 @@
       content: string;
       type?: string;
       duration?: number;
+      replyTo?: string;
     }) {
       if (!this.socket?.connected) {
         console.error("[SOCKET] Not connected");
@@ -159,6 +160,7 @@
         content: params.content,
         type: params.type || "text",
         duration: params.duration,
+        replyTo: params.replyTo,
       });
     }
 

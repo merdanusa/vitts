@@ -30,6 +30,7 @@
     "axios": "^1.13.2",
     "expo": "~54.0.32",
     "expo-audio": "~1.1.1",
+    "expo-av": "~16.0.8",
     "expo-blur": "~15.0.8",
     "expo-constants": "~18.0.13",
     "expo-contacts": "~15.0.11",

@@ -60,20 +60,27 @@ export const ChatListItem = React.memo<ChatListItemProps>(
     const router = useRouter();
 
     const handleChatPress = useCallback(() => {
-      router.push(`/chats/${item.id}`);
-    }, [router, item.id]);
+      if (item.type === "group") {
+        router.push(`/chats/group/${item.id}`);
+      } else {
+        router.push(`/chats/${item.id}`);
+      }
+    }, [router, item.id, item.type]);
 
     const handleProfilePress = useCallback(() => {
       router.push(`/discover/${item.participant.id}`);
     }, [router, item.participant.id]);
 
+    const isGroup = item.type === "group";
+    const displayName = isGroup ? (item.name || "Group") : item.participant.name;
     const unread = isUnread(item, currentUserId);
     const messageStatus = getMessageStatus(item, currentUserId, isDark);
-    const initials = getInitials(item.participant.name);
+    const initials = getInitials(displayName);
+    const avatarUri = isGroup ? item.avatar : item.participant.avatar;
     const hasAvatar =
-      item.participant.avatar &&
-      item.participant.avatar !== "M" &&
-      item.participant.avatar !== "";
+      avatarUri &&
+      avatarUri !== "M" &&
+      avatarUri !== "";
 
     return (
       <TouchableOpacity
@@ -87,11 +94,11 @@ export const ChatListItem = React.memo<ChatListItemProps>(
         className="px-4 py-3"
       >
         <View className="flex-row items-center">
-          <Pressable onPress={handleProfilePress}>
+          <Pressable onPress={isGroup ? handleChatPress : handleProfilePress}>
             <View className="mr-3 relative">
               {hasAvatar ? (
                 <Image
-                  source={{ uri: item.participant.avatar }}
+                  source={{ uri: avatarUri }}
                   style={{ width: 56, height: 56, borderRadius: 28 }}
                 />
               ) : (
@@ -112,7 +119,7 @@ export const ChatListItem = React.memo<ChatListItemProps>(
                   </Text>
                 </View>
               )}
-              {item.participant.isOnline && (
+              {!isGroup && item.participant.isOnline && (
                 <View
                   style={{
                     position: "absolute",
@@ -137,7 +144,7 @@ export const ChatListItem = React.memo<ChatListItemProps>(
                 className="font-semibold text-base"
                 numberOfLines={1}
               >
-                {item.participant.name}
+                {displayName}
               </Text>
               {item.lastMessage && (
                 <Text
@@ -183,6 +190,7 @@ export const ChatListItem = React.memo<ChatListItemProps>(
     // Custom comparison for better performance
     return (
       prevProps.item.id === nextProps.item.id &&
+      prevProps.item.type === nextProps.item.type &&
       prevProps.item.lastMessage?.id === nextProps.item.lastMessage?.id &&
       prevProps.item.lastMessage?.isRead ===
         nextProps.item.lastMessage?.isRead &&

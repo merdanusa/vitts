@@ -270,6 +270,10 @@ export const {
   markChatAsRead,
 } = chatSlice.actions;
 
+// Stable empty references to avoid new object creation on every selector call
+const EMPTY_MESSAGES: Message[] = [];
+const EMPTY_TYPING: string[] = [];
+
 // Selectors
 export const selectChatList = createSelector(
   [(state: RootState) => state.chat.chats],
@@ -293,12 +297,12 @@ export const selectChatById = (chatId: string) => (state: RootState) => {
 export const selectChatMessages =
   (chatId: string) =>
   (state: RootState): Message[] => {
-    return state.chat.messages[chatId] || [];
+    return state.chat.messages[chatId] || EMPTY_MESSAGES;
   };
 
 export const selectUnreadCount =
   (chatId: string, currentUserId: string) => (state: RootState) => {
-    const messages = state.chat.messages[chatId] || [];
+    const messages = state.chat.messages[chatId] || EMPTY_MESSAGES;
     return messages.filter(
       (m) => m.senderId !== currentUserId && !m.isRead,
     ).length;
@@ -307,13 +311,13 @@ export const selectUnreadCount =
 export const selectIsTyping =
   (chatId: string) =>
   (state: RootState): boolean => {
-    return (state.chat.typingUsers[chatId] || []).length > 0;
+    return (state.chat.typingUsers[chatId] || EMPTY_TYPING).length > 0;
   };
 
 export const selectTypingUsers =
   (chatId: string) =>
   (state: RootState): string[] => {
-    return state.chat.typingUsers[chatId] || [];
+    return state.chat.typingUsers[chatId] || EMPTY_TYPING;
   };
 
 export const selectPendingMessages = (state: RootState): Message[] => {

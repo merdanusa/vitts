@@ -9,11 +9,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
 
 import { AttachmentModal } from "@/components/chat/AttachmentModal";
-import { ChatHeader } from "@/components/chat/ChatHeader";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { EmojiPickerModal } from "@/components/chat/EmojiPickerModal";
+import { GroupChatHeader } from "@/components/chat/GroupChatHeader";
 import { LoadingView } from "@/components/chat/LoadingView";
 import { MessagesList } from "@/components/chat/MessagesList";
 import { RecordingIndicator } from "@/components/chat/RecordingIndicator";
@@ -21,8 +22,9 @@ import { ReplyPreview } from "@/components/chat/ReplyPreview";
 import { UploadIndicator } from "@/components/chat/UploadIndicator";
 import { ImageBackground } from "@/components/ui/image-background";
 import { useChatScreen } from "@/hooks/chat/useChatScreen";
+import { selectTypingUsers } from "@/store/chatSlice";
 
-const ChatDetailScreen = () => {
+const GroupChatDetailScreen = () => {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -39,7 +41,6 @@ const ChatDetailScreen = () => {
     isRecording,
     recordingDuration,
     recordingAnimation,
-    isTyping,
     loading,
     loadingMore,
     hasMore,
@@ -65,19 +66,17 @@ const ChatDetailScreen = () => {
     clearReply,
   } = useChatScreen(id);
 
-  const participant = chatData?.participants?.find(
-    (p: any) => p.id !== currentUserId,
-  );
+  const typingUserIds = useSelector(selectTypingUsers(id));
 
   const handleVoiceCall = () =>
-    Alert.alert("Voice Call", "Starting voice call...");
+    Alert.alert("Voice Call", "Starting group voice call...");
   const handleVideoCall = () =>
-    Alert.alert("Video Call", "Starting video call...");
+    Alert.alert("Video Call", "Starting group video call...");
   const handleMoreOptions = () =>
     Alert.alert("Options", "Additional options...");
 
-  const handleProfilePress = () => {
-    if (participant?.id) router.push(`/discover/${participant.id}`);
+  const handleGroupInfoPress = () => {
+    router.push(`/chats/group-info/${id}`);
   };
 
   if (loading || !isMounted) return <LoadingView isDark={isDark} />;
@@ -109,13 +108,15 @@ const ChatDetailScreen = () => {
                 className="overflow-hidden"
               >
                 <SafeAreaView edges={["top"]}>
-                  <ChatHeader
+                  <GroupChatHeader
                     isDark={isDark}
-                    participant={participant}
-                    isTyping={isTyping}
-                    initialIsOnline={participant?.isOnline}
+                    groupName={chatData?.name || "Group"}
+                    groupAvatar={chatData?.avatar}
+                    participantCount={chatData?.participants?.length || 0}
+                    participants={chatData?.participants || []}
+                    typingUsers={typingUserIds}
                     onBack={() => router.back()}
-                    onProfilePress={handleProfilePress}
+                    onGroupInfoPress={handleGroupInfoPress}
                     onVoiceCall={handleVoiceCall}
                     onVideoCall={handleVideoCall}
                     onMoreOptions={handleMoreOptions}
@@ -125,13 +126,15 @@ const ChatDetailScreen = () => {
             ) : (
               <View className={isDark ? "bg-[#121212]/97" : "bg-white/97"}>
                 <SafeAreaView edges={["top"]}>
-                  <ChatHeader
+                  <GroupChatHeader
                     isDark={isDark}
-                    participant={participant}
-                    isTyping={isTyping}
-                    initialIsOnline={participant?.isOnline}
+                    groupName={chatData?.name || "Group"}
+                    groupAvatar={chatData?.avatar}
+                    participantCount={chatData?.participants?.length || 0}
+                    participants={chatData?.participants || []}
+                    typingUsers={typingUserIds}
                     onBack={() => router.back()}
-                    onProfilePress={handleProfilePress}
+                    onGroupInfoPress={handleGroupInfoPress}
                     onVoiceCall={handleVoiceCall}
                     onVideoCall={handleVideoCall}
                     onMoreOptions={handleMoreOptions}
@@ -147,7 +150,7 @@ const ChatDetailScreen = () => {
               messages={messages}
               currentUserId={currentUserId}
               isDark={isDark}
-              isGroupChat={false}
+              isGroupChat={true}
               onLoadMore={loadMoreMessages}
               loadingMore={loadingMore}
               hasMore={hasMore}
@@ -210,4 +213,4 @@ const ChatDetailScreen = () => {
   );
 };
 
-export default React.memo(ChatDetailScreen);
+export default React.memo(GroupChatDetailScreen);
